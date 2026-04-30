@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://boxabirds.github.io/tech-coach/protocol/event.schema.json",
+  "title": "Coach Event Envelope",
+  "type": "object",
+  "required": ["host", "event", "cwd", "recentRequests", "changedFiles", "repoSignals", "memoryRefs", "priorDecisions", "optionalSignals"],
+  "additionalProperties": false,
+  "properties": {
+    "host": { "type": "string", "minLength": 1 },
+    "event": { "type": "string", "minLength": 1 },
+    "cwd": { "type": "string", "minLength": 1 },
+    "userRequest": { "type": "string" },
+    "recentRequests": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "changedFiles": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "repoSignals": {
+      "type": "object",
+      "required": ["status"],
+      "additionalProperties": true,
+      "properties": {
+        "status": { "enum": ["present", "absent", "failed"] }
+      }
+    },
+    "testSummary": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "memoryRefs": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "priorDecisions": {
+      "type": "array",
+      "items": { "type": "object", "additionalProperties": true }
+    },
+    "optionalSignals": {
+      "type": "array",
+      "items": { "type": "object", "additionalProperties": true }
+    }
+  }
+}
