@@ -251,9 +251,12 @@ Representative commands:
 ```text
 archcoach assess-request
 archcoach assess-change
+archcoach plan-interview
+archcoach apply-interview-answers
 archcoach review-structure
 archcoach record-decision
 archcoach check-revisit
+archcoach scan-repository
 archcoach summarize-diff
 archcoach state
 archcoach test-fixture
@@ -274,17 +277,27 @@ Minimum v1 tools:
 
 ```text
 architecture.assess_change
+architecture.plan_interview
+architecture.apply_interview_answers
 architecture.horizon_scan
 architecture.review_structure
 architecture.record_decision
 architecture.check_revisit_triggers
 architecture.get_memory
+architecture.scan_repository
 ```
 
 The MCP layer should preserve determinism where possible and return structured
 results. The tool descriptions should carry the control-surface contract:
 agents should understand when the tool is expected, what inputs matter, and how
 to act on the returned intervention.
+
+Interviewing is host-mediated. The coach selects and prioritizes questions,
+provides answer schemas/options, and applies structured answers to baseline
+state or memory. The coding host owns the human conversation: it asks questions
+in natural language, handles clarification, and sends structured answers back
+through MCP or CLI. The coach must not invent user answers and should not try to
+be a chat interface.
 
 ### Skill
 
@@ -300,6 +313,9 @@ It should include:
 - guardrails against overengineering
 - instructions for when to call MCP tools voluntarily
 - instructions for how to respond to hook-injected recommendations
+- instructions for host-mediated interviews: ask the user naturally, explain
+  why a question matters, do not invent answers, and call
+  `architecture.apply_interview_answers` with structured answers
 
 The skill should not be the only enforcement mechanism.
 
@@ -333,12 +349,14 @@ Hook responsibilities:
 - capture event context
 - call `archcoach` or the MCP tool
 - inject context or recommendation
+- surface `interview_required` or `decision_required` for the host agent to
+  handle conversationally
 - block only when the intervention level requires it
 - avoid infinite loops on Stop hooks
 - write compact audit records
 
 Hooks should be thin adapters. They should not contain the core architecture
-policy.
+policy and should not conduct interviews themselves.
 
 ### Agents / Subagents
 
@@ -914,6 +932,7 @@ Allowed responses:
 
 - inject nothing
 - inject a note/recommendation
+- inject an interview-needed signpost for the host agent to ask the user
 - ask the agent to call an MCP tool for deeper assessment
 - in strict mode, block planning until an explicit decision is made
 
@@ -938,6 +957,8 @@ Expected behavior:
 
 - if silent, do nothing
 - if note/recommend, inject context into the next model turn
+- if interview is required, inject structured questions and require the host
+  agent to ask the user before fabricating assumptions
 - if block, instruct the agent to address the architectural issue before
   continuing
 
@@ -958,8 +979,10 @@ Expected behavior:
 
 - do nothing if no unresolved issue exists
 - in advisory mode, append a concise note
-- in balanced mode, block only high-risk unresolved issues
-- in strict mode, block unresolved recommend/block issues
+- in balanced mode, block only high-risk unresolved issues, including
+  unanswered high-risk interview questions
+- in strict mode, block unresolved recommend/block issues, including required
+  interviews or decisions
 
 The Stop hook must detect when it is already active to avoid infinite
 continuation loops.
@@ -1200,6 +1223,8 @@ Test cases:
 
 ```text
 architecture.assess_change returns valid assessment JSON.
+architecture.plan_interview returns prioritized questions with answer schemas.
+architecture.apply_interview_answers applies host-collected answers to baseline state.
 architecture.record_decision writes a valid memory record.
 architecture.check_revisit_triggers detects expired assumption.
 architecture.get_memory returns compact context suitable for injection.
@@ -1232,17 +1257,23 @@ Test cases:
    - When UserPromptSubmit fires
    - Then the agent receives a structured signpost before planning.
 
-3. **PostToolBatch drift detection**
+3. **Host-mediated interview**
+   - Given assessment returns high-impact unresolved questions
+   - When UserPromptSubmit or PostToolBatch injects the result
+   - Then the host agent asks the user conversationally and submits structured
+     answers back to the coach.
+
+4. **PostToolBatch drift detection**
    - Given a diff that stores permissions in localStorage
    - When PostToolBatch fires
    - Then the coach recommends stopping or replacing substrate.
 
-4. **Shell-created file changes**
+5. **Shell-created file changes**
    - Given files changed via shell command rather than edit tool
    - When PostToolBatch or Stop runs
    - Then changed files are still detected through git status/diff.
 
-5. **Stop gate**
+6. **Stop gate**
    - Given unresolved high-risk threshold
    - When Stop fires in balanced or strict mode
    - Then finalization is blocked with feedback.
@@ -1355,6 +1386,7 @@ Test cases:
 
 ```text
 Same fixture produces same assessment through CLI and MCP.
+Same host-collected interview answer updates baseline state through CLI and MCP.
 Claude event adapter and generic event adapter normalize to same envelope.
 Skill text can be used without Claude-specific hook assumptions.
 Host-specific hook failure does not corrupt memory.
