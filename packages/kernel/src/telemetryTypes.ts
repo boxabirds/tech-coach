@@ -69,6 +69,12 @@ export type MemorySignal = {
   id?: string;
   concern?: string;
   decision?: string;
+  context?: string;
+  reason?: string;
+  risks?: string[];
+  state?: string;
+  source?: string;
+  createdAt?: string;
   revisitIf: string[];
   evidence: string[];
 };
