@@ -12,6 +12,8 @@ export type BaselineFactStatus =
   | "observed"
   | "inferred"
   | "user_confirmed"
+  | "user_corrected"
+  | "intentionally_temporary"
   | "unknown";
 
 export type BaselineConfidence = "low" | "medium" | "high";
@@ -64,6 +66,7 @@ export type BaselineFact = {
   freshness: BaselineFreshness;
   sources: EvidenceSourceRef[];
   summary: string;
+  confirmations?: BaselineConfirmation[];
 };
 
 export type BaselineUnknown = {
@@ -78,6 +81,68 @@ export type BaselineDiagnostic = {
   severity: "info" | "warning" | "error";
   message: string;
   source?: string;
+};
+
+export type BaselineQuestionKind =
+  | "confirm"
+  | "correct"
+  | "choose"
+  | "free_text"
+  | "skip";
+
+export type BaselineAnswerAction =
+  | "confirm"
+  | "correct"
+  | "mark_temporary"
+  | "skip";
+
+export type BaselineConfirmationStatus =
+  | "user_confirmed"
+  | "user_corrected"
+  | "intentionally_temporary"
+  | "unresolved";
+
+export type BaselineQuestion = {
+  id: string;
+  concern: ArchitectureConcern;
+  kind: BaselineQuestionKind;
+  prompt: string;
+  reason: string;
+  relatedFactIds: string[];
+  relatedUnknownIds: string[];
+  relatedSignalIds: string[];
+  options?: string[];
+};
+
+export type BaselineAnswer = {
+  questionId: string;
+  action: BaselineAnswerAction;
+  value?: string;
+  note?: string;
+  answerId?: string;
+  recordedAt?: string;
+};
+
+export type BaselineConfirmation = {
+  factId: string;
+  questionId: string;
+  status: BaselineConfirmationStatus;
+  answerId: string;
+  recordedAt: string;
+  value?: string;
+  note?: string;
+};
+
+export type BaselineInterviewInput = {
+  baseline: ArchitectureBaseline;
+  telemetry?: ArchitecturalTelemetryBundle;
+};
+
+export type BaselineAnswerMergeInput = {
+  baseline: ArchitectureBaseline;
+  questions: BaselineQuestion[];
+  answers: BaselineAnswer[];
+  recordedAt?: string;
 };
 
 export type DecisionAxisAssessment = {
@@ -112,10 +177,22 @@ export type ArchitectureBaseline = {
   facts: BaselineFact[];
   unknowns: BaselineUnknown[];
   diagnostics: BaselineDiagnostic[];
+  confirmations?: BaselineConfirmation[];
 };
 
 export interface ArchitectureBaselineSynthesizer {
   synthesize(input: BaselineInput): ArchitectureBaseline;
+}
+
+export interface BaselineInterviewPlanner {
+  planQuestions(
+    input: BaselineInterviewInput,
+    limit?: number,
+  ): BaselineQuestion[];
+}
+
+export interface BaselineAnswerMerger {
+  applyAnswers(input: BaselineAnswerMergeInput): ArchitectureBaseline;
 }
 
 export class BaselineValidationError extends Error {
