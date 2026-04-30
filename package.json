@@ -3,8 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "bin": {
+    "archcoach": "bin/archcoach"
+  },
   "packageManager": "bun@1.2.17",
   "scripts": {
+    "build:cli": "bun build packages/cli/src/index.ts --target=node --outfile dist/cli.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
