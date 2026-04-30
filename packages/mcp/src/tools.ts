@@ -398,9 +398,9 @@ function readLimit(value: unknown): number | undefined {
 
 function readRepoRoot(
   value: Record<string, unknown>,
-  runtime: ArchitectureToolRuntime,
+  _runtime: ArchitectureToolRuntime,
 ): string {
-  const repoRoot = typeof value.repoRoot === "string" ? value.repoRoot : runtime.cwd;
+  const repoRoot = readActiveProjectRoot(value);
   if (!repoRoot || repoRoot.trim().length === 0) {
     throw new ToolInputError("input.repoRoot", "is required");
   }
@@ -411,10 +411,11 @@ function readMemoryPath(
   value: Record<string, unknown>,
   runtime: ArchitectureToolRuntime,
 ): string {
+  const repoRoot = readRepoRoot(value, runtime);
   if (typeof value.memoryPath === "string" && value.memoryPath.trim().length > 0) {
-    return resolve(runtime.cwd ?? process.cwd(), value.memoryPath);
+    return resolve(repoRoot, value.memoryPath);
   }
-  return new ProjectMemoryStore(readRepoRoot(value, runtime), readMemoryOptions(value)).memoryPath;
+  return new ProjectMemoryStore(repoRoot, readMemoryOptions(value)).memoryPath;
 }
 
 function readMemoryOptions(value: Record<string, unknown>): MemoryOptions {
@@ -441,6 +442,25 @@ function appendDecision(
     : new ProjectMemoryStore(repoRoot, options);
   store.append(record);
   return store.memoryPath;
+}
+
+function readActiveProjectRoot(value: Record<string, unknown>): string | undefined {
+  if (typeof value.repoRoot === "string" && value.repoRoot.trim().length > 0) {
+    return value.repoRoot;
+  }
+  if (isRecord(value.event)) {
+    return normalizeHostEvent(value.event).cwd;
+  }
+  if (typeof value.cwd === "string" && value.cwd.trim().length > 0) {
+    return value.cwd;
+  }
+  const telemetry = isTelemetryBundle(value.telemetry) ? value.telemetry : undefined;
+  const telemetryCwd = telemetry?.lifecycle.find((signal) =>
+    signal.status === "present"
+    && typeof signal.payload.cwd === "string"
+    && signal.payload.cwd.trim().length > 0
+  )?.payload.cwd;
+  return telemetryCwd;
 }
 
 function isTelemetryBundle(value: unknown): value is ArchitecturalTelemetryBundle {

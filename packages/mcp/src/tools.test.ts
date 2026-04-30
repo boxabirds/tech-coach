@@ -290,6 +290,120 @@ describe("architecture MCP tool contracts", () => {
       isError: false,
     });
   });
+
+  it("keeps default memory files isolated by active repository under a global server cwd", () => {
+    const globalRoot = tempRoot();
+    const repoA = tempRoot();
+    const repoB = tempRoot();
+
+    try {
+      const repoADecision = { ...decisionToRecord, id: "decision-repo-a" };
+      const repoBDecision = {
+        ...decisionToRecord,
+        id: "decision-repo-b",
+        decision: "Use SQLite for repo B",
+      };
+
+      expect(invokeArchitectureTool("architecture.record_decision", {
+        repoRoot: repoA,
+        decision: repoADecision,
+      }, { cwd: globalRoot }).ok).toBe(true);
+      expect(invokeArchitectureTool("architecture.record_decision", {
+        repoRoot: repoB,
+        decision: repoBDecision,
+      }, { cwd: globalRoot }).ok).toBe(true);
+
+      const repoAMemory = invokeArchitectureTool("architecture.get_memory", {
+        repoRoot: repoA,
+      }, { cwd: globalRoot });
+      const repoBMemory = invokeArchitectureTool("architecture.get_memory", {
+        repoRoot: repoB,
+      }, { cwd: globalRoot });
+
+      expect(repoAMemory.ok ? repoAMemory.result : undefined).toMatchObject({
+        records: [expect.objectContaining({ id: "decision-repo-a" })],
+      });
+      expect(repoBMemory.ok ? repoBMemory.result : undefined).toMatchObject({
+        records: [expect.objectContaining({ id: "decision-repo-b" })],
+      });
+      expect(readFileSync(join(repoA, ".archcoach", "memory.jsonl"), "utf8")).toContain(
+        "decision-repo-a",
+      );
+      expect(readFileSync(join(repoB, ".archcoach", "memory.jsonl"), "utf8")).toContain(
+        "decision-repo-b",
+      );
+      expect(readdirSync(globalRoot)).toEqual([]);
+    } finally {
+      rmSync(globalRoot, { recursive: true, force: true });
+      rmSync(repoA, { recursive: true, force: true });
+      rmSync(repoB, { recursive: true, force: true });
+    }
+  });
+
+  it("loads assessment memory from event cwd rather than the global server cwd", () => {
+    const globalRoot = tempRoot();
+    const repoA = tempRoot();
+    const repoB = tempRoot();
+
+    try {
+      const record = invokeArchitectureTool("architecture.record_decision", {
+        repoRoot: repoA,
+        decision: { ...decisionToRecord, id: "decision-repo-a-revisit" },
+      }, { cwd: globalRoot });
+      expect(record.ok).toBe(true);
+
+      const repoARevisit = invokeArchitectureTool("architecture.check_revisit_triggers", {
+        event: { ...revisitInput.event, cwd: repoA },
+        memoryPath: ".archcoach/memory.jsonl",
+      }, { cwd: globalRoot });
+      const repoBRevisit = invokeArchitectureTool("architecture.check_revisit_triggers", {
+        event: { ...revisitInput.event, cwd: repoB },
+        memoryPath: ".archcoach/memory.jsonl",
+      }, { cwd: globalRoot });
+
+      expect(repoARevisit.ok ? repoARevisit.result : undefined).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ decisionId: "decision-repo-a-revisit" }),
+        ]),
+      );
+      expect(repoBRevisit.ok ? repoBRevisit.result : undefined).toEqual([]);
+      expect(readdirSync(globalRoot)).toEqual([]);
+    } finally {
+      rmSync(globalRoot, { recursive: true, force: true });
+      rmSync(repoA, { recursive: true, force: true });
+      rmSync(repoB, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects memory-sensitive calls without active project context", () => {
+    const globalRoot = tempRoot();
+
+    try {
+      const record = invokeArchitectureTool("architecture.record_decision", {
+        decision: decisionToRecord,
+      }, { cwd: globalRoot });
+      const read = invokeArchitectureTool("architecture.get_memory", {}, { cwd: globalRoot });
+      const assess = invokeArchitectureTool("architecture.assess_change", {
+        memoryPath: ".archcoach/memory.jsonl",
+      }, { cwd: globalRoot });
+
+      expect(record).toMatchObject({
+        ok: false,
+        error: { code: "invalid_input", field: "input.repoRoot" },
+      });
+      expect(read).toMatchObject({
+        ok: false,
+        error: { code: "invalid_input", field: "input.repoRoot" },
+      });
+      expect(assess).toMatchObject({
+        ok: false,
+        error: { code: "invalid_input", field: "input.repoRoot" },
+      });
+      expect(readdirSync(globalRoot)).toEqual([]);
+    } finally {
+      rmSync(globalRoot, { recursive: true, force: true });
+    }
+  });
 });
 
 function tempRoot(): string {
