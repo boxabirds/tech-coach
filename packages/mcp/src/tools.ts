@@ -38,11 +38,19 @@ import {
   TelemetryValidationError,
   type ArchitecturalTelemetryBundle,
 } from "../../kernel/src/telemetryTypes.js";
+import {
+  applyPersistedAnswer,
+  captureAssessment,
+  confirmPersistedDecision,
+  type CaptureAssessmentResult,
+} from "../../persistence/src/index.js";
 
 export type ArchitectureCoachToolName =
   | "architecture.assess_change"
+  | "architecture.capture_assessment"
   | "architecture.plan_interview"
   | "architecture.apply_interview_answers"
+  | "architecture.answer_question"
   | "architecture.horizon_scan"
   | "architecture.review_structure"
   | "architecture.record_decision"
@@ -55,7 +63,8 @@ export type ToolErrorCode =
   | "invalid_telemetry"
   | "invalid_interview_answer"
   | "kernel_unavailable"
-  | "memory_failure";
+  | "memory_failure"
+  | "persistence_failure";
 
 export type ToolError = {
   code: ToolErrorCode;
@@ -139,12 +148,20 @@ export const architectureTools: ToolDescriptor[] = [
     "Return structured architecture guidance for typed telemetry or a legacy host event. Prefer typed telemetry when available. This tool never writes memory.",
   ),
   descriptor(
+    "architecture.capture_assessment",
+    "Run a durable brownfield assessment and write the repo-local .ceetrix/tech-lead SQLite store plus artifact pack.",
+  ),
+  descriptor(
     "architecture.plan_interview",
     "Return focused host-mediated architecture questions for an existing baseline. The host asks the user and must not invent answers.",
   ),
   descriptor(
     "architecture.apply_interview_answers",
     "Apply host-collected BaselineAnswer objects to a baseline and return the updated baseline. Durable memory writes require architecture.record_decision.",
+  ),
+  descriptor(
+    "architecture.answer_question",
+    "Persist a host-collected answer or skipped question to the repo-local Tech Lead assessment pack and regenerate artifacts.",
   ),
   descriptor(
     "architecture.horizon_scan",
@@ -185,10 +202,14 @@ export function invokeArchitectureTool(
     switch (name) {
       case "architecture.assess_change":
         return success(name, assessChange(input, runtime));
+      case "architecture.capture_assessment":
+        return success(name, captureAssessmentTool(input, runtime));
       case "architecture.plan_interview":
         return success(name, planInterview(input));
       case "architecture.apply_interview_answers":
         return success(name, applyInterviewAnswers(input));
+      case "architecture.answer_question":
+        return success(name, answerQuestion(input, runtime));
       case "architecture.horizon_scan":
         return success(name, horizonScan(input, runtime));
       case "architecture.review_structure":
@@ -232,6 +253,17 @@ export function assessChange(
   };
 }
 
+export function captureAssessmentTool(
+  input: unknown,
+  runtime: ArchitectureToolRuntime = {},
+): CaptureAssessmentResult {
+  const value = requireRecord(input, "input");
+  return captureAssessment({
+    ...value,
+    repoRoot: readActiveProjectRoot(value) ?? runtime.cwd,
+  });
+}
+
 export function planInterview(input: unknown): BaselineQuestion[] {
   const value = requireRecord(input, "input");
   if (!isRecord(value.baseline)) {
@@ -258,6 +290,24 @@ export function applyInterviewAnswers(input: unknown): ArchitectureBaseline {
   }
 
   return applyBaselineAnswers(value as BaselineAnswerMergeInput);
+}
+
+export function answerQuestion(
+  input: unknown,
+  runtime: ArchitectureToolRuntime = {},
+): CaptureAssessmentResult {
+  const value = requireRecord(input, "input");
+  if (typeof value.questionId !== "string" || value.questionId.trim().length === 0) {
+    throw new ToolInputError("input.questionId", "is required");
+  }
+  return applyPersistedAnswer({
+    ...value,
+    repoRoot: readActiveProjectRoot(value) ?? runtime.cwd,
+    questionId: value.questionId,
+    action: typeof value.action === "string" ? value.action as never : "confirm",
+    value: readString(value.value),
+    note: readString(value.note),
+  });
 }
 
 export function horizonScan(
@@ -289,8 +339,16 @@ export function reviewStructure(
 export function recordDecision(
   input: unknown,
   runtime: ArchitectureToolRuntime = {},
-): DecisionResult {
+): DecisionResult | CaptureAssessmentResult {
   const value = requireRecord(input, "input");
+  if (value.confirmed === true || value.persistence === "tech-lead") {
+    return confirmPersistedDecision({
+      ...value,
+      repoRoot: readActiveProjectRoot(value) ?? runtime.cwd,
+      decision: assertDecisionRecord(value.decision),
+      confirmed: value.confirmed === true,
+    });
+  }
   const repoRoot = readRepoRoot(value, runtime);
   const record = assertDecisionRecord(value.decision);
   const memoryOptions = readMemoryOptions(value);

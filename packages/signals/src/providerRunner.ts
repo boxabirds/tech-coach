@@ -28,6 +28,7 @@ export type OptionalProviderRunOptions = {
 
 const validCategories = new Set<EvidenceCategory>([
   "file_layout",
+  "architecture_shape",
   "changed_file_spread",
   "import_relationship",
   "symbol_reference",
@@ -210,6 +211,7 @@ function withTimeout<T>(
 export function familyForCategory(category: EvidenceCategory): Exclude<SignalFamily, "lifecycle" | "memory"> {
   switch (category) {
     case "file_layout":
+    case "architecture_shape":
     case "configuration_boundary":
     case "history_interaction":
       return "repository";

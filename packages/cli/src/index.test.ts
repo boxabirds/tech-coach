@@ -29,6 +29,7 @@ describe("CLI argument contract", () => {
       "--memory",
       ".archcoach/memory.jsonl",
     ])).toEqual({
+      command: "assess",
       inputPath: "input.json",
       output: "json",
       memoryPath: ".archcoach/memory.jsonl",
@@ -39,6 +40,35 @@ describe("CLI argument contract", () => {
   it("rejects invalid output formats and memory-writing assess mode", () => {
     expect(() => parseCliArgs(["assess", "--output", "yaml"])).toThrow(/Unsupported output/);
     expect(() => parseCliArgs(["assess", "--write-memory"])).toThrow(/Memory writes/);
+  });
+
+  it("parses durable capture, answer, and decision commands", () => {
+    expect(parseCliArgs(["capture", "--repo", "/repo", "--output", "json"])).toMatchObject({
+      command: "capture",
+      repo: "/repo",
+      output: "json",
+    });
+    expect(parseCliArgs([
+      "answer",
+      "--repo",
+      "/repo",
+      "--question",
+      "q1",
+      "--answer",
+      "yes",
+      "--action",
+      "correct",
+    ])).toMatchObject({
+      command: "answer",
+      repo: "/repo",
+      questionId: "q1",
+      answer: "yes",
+      action: "correct",
+    });
+    expect(parseCliArgs(["decide", "--repo", "/repo", "--confirm"])).toMatchObject({
+      command: "decide",
+      confirm: true,
+    });
   });
 
   it("reports a missing bundled runtime artifact", () => {

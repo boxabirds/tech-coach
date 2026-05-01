@@ -16,7 +16,6 @@ describe("Claude Code plugin assets", () => {
     expect(report.manifest).toMatchObject({
       name: "tech-coach",
       skills: "./skills/",
-      hooks: "./hooks/hooks.json",
       mcpServers: "./.mcp.json",
     });
     expect(report.manifest.userConfig).toMatchObject({
@@ -33,7 +32,50 @@ describe("Claude Code plugin assets", () => {
         },
       },
     });
-    expect(report.hooksConfig).toEqual({ hooks: {} });
+    expect(report.hooksConfig).toMatchObject({
+      hooks: {
+        SessionStart: [
+          {
+            hooks: [
+              {
+                type: "command",
+                command: "${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh",
+              },
+            ],
+          },
+        ],
+        UserPromptSubmit: [
+          {
+            hooks: [
+              {
+                type: "command",
+                command: "${CLAUDE_PLUGIN_ROOT}/hooks/user-prompt-submit.sh",
+              },
+            ],
+          },
+        ],
+        PostToolBatch: [
+          {
+            hooks: [
+              {
+                type: "command",
+                command: "${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-batch.sh",
+              },
+            ],
+          },
+        ],
+        Stop: [
+          {
+            hooks: [
+              {
+                type: "command",
+                command: "${CLAUDE_PLUGIN_ROOT}/hooks/stop.sh",
+              },
+            ],
+          },
+        ],
+      },
+    });
     expect(report.settings).toEqual({});
   });
 
@@ -64,6 +106,10 @@ describe("Claude Code plugin assets", () => {
     expect(skillText).toContain("Do not answer the questions yourself");
     expect(skillText).toContain("Do not fabricate missing preferences");
     expect(skillText).toContain("architecture.apply_interview_answers");
+    expect(skillText).toContain("architecture.capture_assessment");
+    expect(skillText).toContain("architecture.answer_question");
+    expect(skillText).toContain("Prior decision records are optional context");
+    expect(skillText).toContain("Never describe the assessment as empty");
     expect(skillText).toContain("\"questionId\"");
     expect(skillText).toContain("Allowed `action` values");
   });
@@ -88,7 +134,9 @@ describe("Claude Code plugin assets", () => {
       result: {
         tools: expect.arrayContaining([
           expect.objectContaining({ name: "architecture.assess_change" }),
+          expect.objectContaining({ name: "architecture.capture_assessment" }),
           expect.objectContaining({ name: "architecture.apply_interview_answers" }),
+          expect.objectContaining({ name: "architecture.answer_question" }),
         ]),
       },
     });

@@ -516,6 +516,7 @@ function categoryFromSignal(signal: SignalEnvelope<
 function familyForCategory(category: string): Exclude<SignalFamily, "lifecycle" | "memory"> {
   switch (category) {
     case "file_layout":
+    case "architecture_shape":
     case "configuration_boundary":
     case "history_interaction":
       return "repository";

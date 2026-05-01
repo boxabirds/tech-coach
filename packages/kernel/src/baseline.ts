@@ -243,23 +243,36 @@ function classifyEvidence(
     });
   };
 
-  if (item.category === "file_layout" || item.category === "configuration_boundary") {
+  if (
+    item.category === "file_layout"
+    || item.category === "configuration_boundary"
+    || item.category === "architecture_shape"
+  ) {
     add("application_shape", "Application structure evidence is present", [], {
-      complexity: containsAny(text, ["monorepo", "packages/", "apps/"])
+      complexity: containsAny(text, ["monorepo", "packages/", "apps/", "react/typescript", "rust crate", "runtime boundary"])
         ? "medium"
         : "low",
       solutionVisibility: "medium",
     });
   }
 
-  if (containsAny(text, ["packages/", "workspace", "monorepo", "shared package"])) {
+  if (containsAny(text, [
+    "packages/",
+    "workspace",
+    "monorepo",
+    "shared package",
+    "package boundary",
+    "runtime boundary",
+    "rust/wasm",
+    "native-module",
+  ])) {
     add("package_boundary", "Package or workspace boundaries are visible", [], {
       complexity: "medium",
-      solutionVisibility: "medium",
+      solutionVisibility: containsAny(text, ["runtime boundary", "rust/wasm"]) ? "high" : "medium",
     });
   }
 
-  if (containsAny(text, ["entrypoint", "main.ts", "app.tsx", "route", "handler"])) {
+  if (containsAny(text, ["entrypoint", "main.ts", "main.tsx", "app.tsx", "route", "handler", "frontend shape"])) {
     add("entrypoint", "Application entry points are visible", [], {
       complexity: "low",
       solutionVisibility: "high",
@@ -346,7 +359,7 @@ function classifyEvidence(
     });
   }
 
-  if (item.category === "test_posture" || containsAny(text, ["vitest", "playwright", "test", "coverage"])) {
+  if (item.category === "test_posture" || containsAny(text, ["vitest", "playwright", "test", "coverage", "test surface"])) {
     add("testing", "Test posture evidence is visible", [], {
       complexity: "low",
       solutionVisibility: "high",

@@ -65,3 +65,78 @@ The plugin exposes:
 Safe defaults are local and advisory: no external credentials are required.
 Hook configuration is present but inert in this story; lifecycle behavior is
 introduced separately.
+
+## Durable Assessment Packs
+
+For brownfield work, use durable capture instead of a transient assessment:
+
+```sh
+archcoach capture --repo /path/to/target-repo --output text < event.json
+```
+
+Capture writes repo-local state under `.ceetrix/tech-lead/`:
+
+- `tech-lead.db`: `bun:sqlite` store for assessment runs, answers, and confirmed decisions
+- `latest-assessment.md`: human-readable summary
+- `latest-assessment.json`: machine-readable latest run
+- `questions.json`: open, answered, and skipped questions
+- `evidence.json`: normalized evidence used by the recommendation
+- `next-actions.md`: focused action list
+- `decisions.jsonl`: exported confirmed decisions
+- `changes-since-last.md`: rerun delta summary
+
+Read-only assessment remains available through `archcoach assess` and must not
+create `.ceetrix/tech-lead/`.
+
+## Test A Brownfield Repo
+
+Run the local brownfield integration assessment from any repository:
+
+```sh
+cd /path/to/target-repo
+/Users/julian/expts/architecture-guide/scripts/test-brownfield.sh
+```
+
+Useful options:
+
+```sh
+/Users/julian/expts/architecture-guide/scripts/test-brownfield.sh \
+  --request "Assess this existing app before I add sharing" \
+  --ceetrix-history /path/to/history.jsonl
+
+/Users/julian/expts/architecture-guide/scripts/test-brownfield.sh --json
+/Users/julian/expts/architecture-guide/scripts/test-brownfield.sh --capture
+/Users/julian/expts/architecture-guide/scripts/test-brownfield.sh \
+  --code-intel-command /Users/julian/expts/architecture-guide/scripts/complexity-to-code-intel.ts
+/Users/julian/expts/architecture-guide/scripts/test-brownfield.sh --claude
+```
+
+By default, the script is read-only for the target repo. It samples file layout,
+changed files, git history, optional transcript history, existing architecture
+memory, and optional Ceetrix history fixtures, then prints the coach's
+recommended next architecture move and any questions that need user answers. Add
+`--capture` to exercise the full persistence workflow and create
+`.ceetrix/tech-lead/` artifacts in the target repo. By default it calls the
+local `bin/archcoach-mcp` server, so it tests the MCP path rather than only the
+kernel. Use `--direct` only when you deliberately want to bypass MCP while
+debugging.
+
+`scripts/complexity-to-code-intel.ts` is an adapter for the Rust tree-sitter
+complexity analyzer. It emits the generic `tech-coach.code-intelligence.v1`
+schema so parser output remains an optional producer, not a hard dependency of
+the coach.
+
+## Test Persistence
+
+Run the normal suite:
+
+```sh
+bun run typecheck
+bun run test
+```
+
+Run the Bun-native SQLite persistence and public workflow suite:
+
+```sh
+bun run test:persistence
+```

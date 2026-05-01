@@ -199,6 +199,20 @@ function chooseRecommendation(
     };
   }
 
+  const packageBoundary = baseline.concerns.find(
+    (concern) =>
+      concern.concern === "package_boundary"
+      && concern.facts.length > 0
+      && concern.confidence !== "low",
+  );
+  if (packageBoundary) {
+    return {
+      intervention: "recommend",
+      action: "Add test harness",
+      reason: "Repository shape shows a runtime or package boundary that can be protected locally while open assumptions remain visible.",
+    };
+  }
+
   if (questions.length > 0) {
     return {
       intervention: "recommend",

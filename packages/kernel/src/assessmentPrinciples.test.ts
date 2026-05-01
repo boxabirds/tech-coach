@@ -45,6 +45,40 @@ describe("assessment principle guidance", () => {
     });
   });
 
+  it("turns React plus Rust/WASM shape into package-boundary guidance", () => {
+    const result = assessArchitecture({
+      event: {
+        ...exploratoryEvent,
+        userRequest: "Assess this existing app",
+        optionalSignals: [
+          {
+            source: "repository-shape",
+            status: "present",
+            category: "architecture_shape",
+            freshness: "current",
+            confidence: "high",
+            evidence: [
+              "React/TypeScript frontend shape: src/main.tsx, src/components/Waveform.tsx",
+              "Rust crate/native module shape: crates/dsp/Cargo.toml, crates/dsp/src/lib.rs",
+              "Runtime boundary: React/TypeScript UI depends on Rust/WASM or native-module code.",
+              "Test surface evidence: tests/dsp-boundary.test.ts",
+            ],
+          },
+        ],
+      },
+    });
+    const guidance = result.principleGuidance.find(
+      (item) => item.concern === "package_boundary",
+    );
+
+    expect(result.action).toBe("Add test harness");
+    expect(guidance?.patterns[0]).toMatchObject({
+      pattern: "add_targeted_test_harness",
+      addNow: expect.stringContaining("React/TypeScript to Rust/WASM boundary"),
+      doNotAddYet: expect.stringContaining("service boundary"),
+    });
+  });
+
   it("keeps exploratory work free of added structure guidance", () => {
     const result = assessArchitecture({ event: exploratoryEvent });
 

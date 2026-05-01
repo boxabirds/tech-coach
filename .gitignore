@@ -11,6 +11,9 @@ coverage/
 .bun/
 .turbo/
 .cache/
+.archcoach/
+.ceetrix/tech-lead/*.db
+.ceetrix/tech-lead/*.db-*
 
 # Logs
 *.log

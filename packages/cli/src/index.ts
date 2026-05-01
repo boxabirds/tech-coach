@@ -14,14 +14,26 @@ import {
 } from "../../kernel/src/memory.js";
 import { ProtocolValidationError } from "../../kernel/src/protocol.js";
 import { TelemetryValidationError } from "../../kernel/src/telemetryTypes.js";
+import {
+  applyPersistedAnswer,
+  captureAssessment,
+  confirmPersistedDecision,
+  type CaptureAssessmentResult,
+} from "../../persistence/src/index.js";
 
 export type CliOutputFormat = "json" | "text";
 
 export type CliOptions = {
+  command?: "assess" | "capture" | "answer" | "decide";
   inputPath?: string;
   output: CliOutputFormat;
   memoryPath?: string;
   readOnly: boolean;
+  repo?: string;
+  questionId?: string;
+  answer?: string;
+  action?: "confirm" | "correct" | "mark_temporary" | "skip";
+  confirm?: boolean;
 };
 
 export type CliRuntime = {
@@ -49,12 +61,14 @@ const defaultRuntimeArtifact = "dist/cli.js";
 
 export function parseCliArgs(argv: string[]): CliOptions {
   const args = [...argv];
-  const command = args.shift();
-  if (command && command !== "assess") {
-    throw new CliUsageError(`Unsupported command "${command}". Use "assess".`);
+  const rawCommand = args[0] && !args[0].startsWith("-") ? args.shift() : undefined;
+  const command = rawCommand ?? "assess";
+  if (command !== "assess" && command !== "capture" && command !== "answer" && command !== "decide") {
+    throw new CliUsageError(`Unsupported command "${command}". Use "assess", "capture", "answer", or "decide".`);
   }
 
   const options: CliOptions = {
+    command,
     output: "text",
     readOnly: true,
   };
@@ -78,6 +92,31 @@ export function parseCliArgs(argv: string[]): CliOptions {
       case "--memory":
         options.memoryPath = readValue(args, ++index, arg);
         break;
+      case "--repo":
+        options.repo = readValue(args, ++index, arg);
+        break;
+      case "--question":
+        options.questionId = readValue(args, ++index, arg);
+        break;
+      case "--answer":
+        options.answer = readValue(args, ++index, arg);
+        break;
+      case "--action": {
+        const action = readValue(args, ++index, arg);
+        if (
+          action !== "confirm"
+          && action !== "correct"
+          && action !== "mark_temporary"
+          && action !== "skip"
+        ) {
+          throw new CliUsageError(`Unsupported answer action "${action}".`);
+        }
+        options.action = action;
+        break;
+      }
+      case "--confirm":
+        options.confirm = true;
+        break;
       case "--read-only":
         options.readOnly = true;
         break;
@@ -92,7 +131,7 @@ export function parseCliArgs(argv: string[]): CliOptions {
     }
   }
 
-  if (!options.readOnly) {
+  if (options.command === "assess" && !options.readOnly) {
     throw new CliUsageError("Memory writes are not supported by the assess command.");
   }
 
@@ -182,10 +221,9 @@ export function renderAssessmentOutput(
 export async function runCli(runtime: CliRuntime = nodeRuntime()): Promise<CliRunResult> {
   try {
     const options = parseCliArgs(runtime.argv);
-    const rawInput = readInput(options, runtime);
-    const parsedInput = parseJson(rawInput);
-    const assessment = runAssessmentCommand(parsedInput, options, runtime);
-    const rendered = renderAssessmentOutput(assessment, options.output);
+    const rawInput = options.command === "answer" ? "{}" : readInput(options, runtime);
+    const parsedInput = rawInput.trim().length === 0 ? {} : parseJson(rawInput);
+    const rendered = runSelectedCommand(parsedInput, options, runtime);
     runtime.stdout(`${rendered}\n`);
     return { exitCode: 0, output: rendered };
   } catch (error) {
@@ -198,6 +236,85 @@ export async function runCli(runtime: CliRuntime = nodeRuntime()): Promise<CliRu
     runtime.stderr(`${message}\n`);
     return { exitCode: 1, error: message };
   }
+}
+
+export function runSelectedCommand(
+  parsedInput: unknown,
+  options: CliOptions,
+  runtime: Pick<CliRuntime, "cwd" | "readFile" | "fileExists"> = nodeRuntime(),
+): string {
+  switch (options.command ?? "assess") {
+    case "assess": {
+      const assessment = runAssessmentCommand(parsedInput, options, runtime);
+      return renderAssessmentOutput(assessment, options.output);
+    }
+    case "capture": {
+      const result = captureAssessment({
+        ...(isRecord(parsedInput) ? parsedInput : {}),
+        repoRoot: options.repo ? resolve(runtime.cwd, options.repo) : readInputRepo(parsedInput, runtime.cwd),
+      });
+      return renderCaptureOutput(result, options.output);
+    }
+    case "answer": {
+      if (!options.questionId) {
+        throw new CliUsageError("--question is required for answer.");
+      }
+      const result = applyPersistedAnswer({
+        repoRoot: options.repo ? resolve(runtime.cwd, options.repo) : runtime.cwd,
+        questionId: options.questionId,
+        action: options.action ?? "confirm",
+        ...(options.answer ? { value: options.answer } : {}),
+      });
+      return renderCaptureOutput(result, options.output);
+    }
+    case "decide": {
+      const decision = isRecord(parsedInput) && isRecord(parsedInput.decision)
+        ? parsedInput.decision
+        : parsedInput;
+      const result = confirmPersistedDecision({
+        repoRoot: options.repo ? resolve(runtime.cwd, options.repo) : runtime.cwd,
+        decision: decision as never,
+        confirmed: options.confirm === true,
+      });
+      return renderCaptureOutput(result, options.output);
+    }
+  }
+}
+
+export function renderCaptureOutput(
+  result: CaptureAssessmentResult,
+  format: CliOutputFormat,
+): string {
+  if (format === "json") {
+    return JSON.stringify(result, null, 2);
+  }
+  const lines = [
+    `Durable record: ${result.durableRecordCreated ? "created" : "not created"}`,
+    `Store: ${result.storePath}`,
+    `Run: ${result.runId}`,
+    `Lifecycle: ${result.lifecycleState}`,
+    `Action: ${result.assessment.action}`,
+    `Reason: ${result.assessment.reason}`,
+  ];
+  if (result.artifactPaths) {
+    lines.push("Artifacts:");
+    lines.push(`- latest assessment: ${result.artifactPaths.latestAssessmentMd}`);
+    lines.push(`- questions: ${result.artifactPaths.questionsJson}`);
+    lines.push(`- next actions: ${result.artifactPaths.nextActionsMd}`);
+  }
+  if (result.openQuestions.length > 0) {
+    lines.push("Open questions:");
+    for (const question of result.openQuestions) {
+      lines.push(`- ${question.id}: ${question.prompt}`);
+    }
+  }
+  if (result.diagnostics.length > 0) {
+    lines.push("Diagnostics:");
+    for (const diagnostic of result.diagnostics) {
+      lines.push(`- ${diagnostic.severity}: ${diagnostic.message}`);
+    }
+  }
+  return lines.join("\n");
 }
 
 export function assertRuntimeArtifactExists(
@@ -303,10 +420,29 @@ function formatError(error: unknown): string {
 
 function usage(): string {
   return [
-    "Usage: archcoach assess --input <file|-> [--output json|text] [--memory <memory.jsonl>] [--read-only]",
+    "Usage:",
+    "  archcoach assess --input <file|-> [--output json|text] [--memory <memory.jsonl>] [--read-only]",
+    "  archcoach capture --repo <path> [--input <file|->] [--output json|text]",
+    "  archcoach answer --repo <path> --question <id> --answer <text> [--action confirm|correct|mark_temporary|skip]",
+    "  archcoach decide --repo <path> --confirm --input <decision.json|->",
     "",
-    "Runs a read-only architecture assessment from a host-neutral event or telemetry bundle.",
+    "Runs read-only assessment or durable repo-local Tech Lead capture.",
   ].join("\n");
+}
+
+function readInputRepo(input: unknown, cwd: string): string {
+  if (isRecord(input)) {
+    if (typeof input.repoRoot === "string") {
+      return resolve(cwd, input.repoRoot);
+    }
+    if (typeof input.cwd === "string") {
+      return resolve(cwd, input.cwd);
+    }
+    if (isRecord(input.event) && typeof input.event.cwd === "string") {
+      return resolve(cwd, input.event.cwd);
+    }
+  }
+  return cwd;
 }
 
 function nodeRuntime(): CliRuntime {

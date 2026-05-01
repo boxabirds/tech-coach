@@ -21,6 +21,7 @@ const axisRank: Record<AxisScore, number> = {
 
 const strongEvidenceCategories = new Set([
   "changed_file_spread",
+  "architecture_shape",
   "configuration_boundary",
   "diagnostic",
   "file_layout",

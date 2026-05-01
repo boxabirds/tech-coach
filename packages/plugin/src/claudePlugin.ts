@@ -83,7 +83,12 @@ export function inspectClaudePluginAssets(root: string): ClaudePluginAssetReport
   requirePath(root, "hooks/hooks.json", issues);
   requirePath(root, "settings.json", issues);
   requireExecutable(root, "bin/archcoach", issues);
+  requireExecutable(root, "bin/archcoach-hook", issues);
   requireExecutable(root, "bin/archcoach-mcp", issues);
+  requireExecutable(root, "hooks/session-start.sh", issues);
+  requireExecutable(root, "hooks/user-prompt-submit.sh", issues);
+  requireExecutable(root, "hooks/post-tool-batch.sh", issues);
+  requireExecutable(root, "hooks/stop.sh", issues);
 
   if (!isRecord(manifest.userConfig)) {
     issues.push({ field: "userConfig", message: "is required" });
@@ -95,6 +100,12 @@ export function inspectClaudePluginAssets(root: string): ClaudePluginAssetReport
   }
   if (!isRecord(hooksConfig.hooks)) {
     issues.push({ field: "hooks.hooks", message: "must be an object" });
+  } else {
+    for (const event of ["SessionStart", "UserPromptSubmit", "PostToolBatch", "Stop"]) {
+      if (!Array.isArray(hooksConfig.hooks[event])) {
+        issues.push({ field: `hooks.hooks.${event}`, message: "is required" });
+      }
+    }
   }
   if (!skillText.includes("architecture.apply_interview_answers")) {
     issues.push({

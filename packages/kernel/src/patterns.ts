@@ -36,6 +36,9 @@ export function selectStructuralPatterns(
   if (concern.concern === "api_contract") {
     patterns.push(apiContractPattern(concern, principles, evidence, text));
   }
+  if (concern.concern === "package_boundary") {
+    patterns.push(packageBoundaryTestPattern(concern, principles, evidence, text));
+  }
   if (
     concern.concern === "testing"
     || principles.some((principle) => principle.id === "testability")
@@ -186,6 +189,27 @@ function apiContractPattern(
     evidence,
     missingEvidence: supportsApi ? [] : ["caller or request/response dependency evidence"],
     confidence: supportsApi ? patternConfidence(concern, evidence) : "low",
+  });
+}
+
+function packageBoundaryTestPattern(
+  concern: BaselineConcernAssessment,
+  principles: ArchitecturePrinciple[],
+  evidence: BaselineFact[],
+  text: string,
+): StructuralPatternRecommendation {
+  const hasRuntimeBoundary = containsAny(text, ["runtime boundary", "rust/wasm", "native module"]);
+  return pattern({
+    pattern: "add_targeted_test_harness",
+    concern: concern.concern,
+    principles,
+    addNow: hasRuntimeBoundary
+      ? "Add a small integration test around the React/TypeScript to Rust/WASM boundary before changing behavior across it."
+      : "Add a focused boundary test around the package or workspace contract before changing behavior across it.",
+    doNotAddYet: "Do not split packages further or introduce a service boundary until the existing runtime/package contract is named and tested.",
+    evidence,
+    missingEvidence: hasRuntimeBoundary ? [] : ["specific runtime or package contract evidence"],
+    confidence: patternConfidence(concern, evidence),
   });
 }
 

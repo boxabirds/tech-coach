@@ -24,8 +24,10 @@ describe("architecture MCP tool contracts", () => {
   it("lists stable architecture tool descriptors", () => {
     expect(listArchitectureTools().map((tool) => tool.name)).toEqual([
       "architecture.assess_change",
+      "architecture.capture_assessment",
       "architecture.plan_interview",
       "architecture.apply_interview_answers",
+      "architecture.answer_question",
       "architecture.horizon_scan",
       "architecture.review_structure",
       "architecture.record_decision",
@@ -117,6 +119,7 @@ describe("architecture MCP tool contracts", () => {
       });
       expect(assessment.ok).toBe(true);
       expect(existsSync(memoryPath)).toBe(false);
+      expect(existsSync(join(root, ".ceetrix", "tech-lead"))).toBe(false);
       expect(readdirSync(root)).toEqual([]);
     } finally {
       rmSync(root, { recursive: true, force: true });

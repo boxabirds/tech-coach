@@ -1,0 +1,17 @@
+#!/usr/bin/env sh
+set -eu
+
+ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+HOOK_SOURCE="$ROOT_DIR/packages/claude-hooks/src/hookCli.ts"
+HOOK_ARTIFACT="$ROOT_DIR/dist/claude-hook.js"
+
+if [ -f "$HOOK_SOURCE" ] && command -v bun >/dev/null 2>&1; then
+  exec bun "$HOOK_SOURCE" "$@"
+fi
+
+if [ -f "$HOOK_ARTIFACT" ]; then
+  exec node "$HOOK_ARTIFACT" "$@"
+fi
+
+echo "Missing bundled runtime artifact: dist/claude-hook.js, and bun is not available. Run the hook build first." >&2
+exit 1

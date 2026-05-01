@@ -11,6 +11,7 @@
     "build:cli": "bun build packages/cli/src/index.ts --target=node --outfile dist/cli.js",
     "build:mcp": "bun build mcp/server/index.ts --target=node --outfile dist/mcp-server.js",
     "test": "vitest run",
+    "test:persistence": "bun test packages/persistence/src/persistence.integration.test.ts packages/evaluation/src/persistenceE2E.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

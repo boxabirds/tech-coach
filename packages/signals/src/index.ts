@@ -2,6 +2,7 @@ import type { SignalStatus } from "../../kernel/src/protocol.js";
 
 export type EvidenceCategory =
   | "file_layout"
+  | "architecture_shape"
   | "changed_file_spread"
   | "import_relationship"
   | "symbol_reference"
@@ -55,6 +56,7 @@ export interface OptionalSignalProvider {
 }
 
 export * from "./config.js";
+export * from "./architectureShape.js";
 export * from "./codeIntelligence.js";
 export * from "./codeIntelligenceTypes.js";
 export * from "./diagnostics.js";

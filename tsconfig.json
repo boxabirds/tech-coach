@@ -9,5 +9,5 @@
     "skipLibCheck": true,
     "types": ["vitest/globals", "node"]
   },
-  "include": ["packages/**/*.ts", "mcp/**/*.ts"]
+  "include": ["packages/**/*.ts", "mcp/**/*.ts", "scripts/**/*.ts"]
 }
