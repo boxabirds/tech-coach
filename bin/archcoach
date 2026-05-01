@@ -3,10 +3,15 @@ set -eu
 
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 CLI_ARTIFACT="$ROOT_DIR/dist/cli.js"
+CLI_SOURCE="$ROOT_DIR/packages/cli/src/index.ts"
 
-if [ ! -f "$CLI_ARTIFACT" ]; then
-  echo "Missing bundled runtime artifact: dist/cli.js. Run 'bun run build:cli' first." >&2
-  exit 1
+if [ -f "$CLI_SOURCE" ] && command -v bun >/dev/null 2>&1; then
+  exec bun "$CLI_SOURCE" "$@"
 fi
 
-exec node "$CLI_ARTIFACT" "$@"
+if [ -f "$CLI_ARTIFACT" ]; then
+  exec node "$CLI_ARTIFACT" "$@"
+fi
+
+echo "Missing bundled runtime artifact: dist/cli.js, and bun is not available. Run 'bun run build:cli' first." >&2
+exit 1

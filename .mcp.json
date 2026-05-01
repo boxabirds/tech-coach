@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "tech-coach": {
+      "command": "${CLAUDE_PLUGIN_ROOT}/bin/archcoach-mcp",
+      "cwd": "${CLAUDE_PLUGIN_ROOT}",
+      "env": {
+        "ARCHCOACH_MODE": "${user_config.coach_mode}",
+        "ARCHCOACH_MEMORY_LOCATION": "${user_config.memory_location}",
+        "ARCHCOACH_EVALUATOR": "${user_config.evaluator}",
+        "ARCHCOACH_EXTERNAL_ENDPOINT": "${user_config.external_endpoint}",
+        "ARCHCOACH_EXTERNAL_TOKEN": "${user_config.external_token}"
+      }
+    }
+  }
+}

@@ -46,3 +46,22 @@ timing:
 Introduce the smallest structure that protects the next likely change.
 ```
 
+## Try The Claude Code Plugin
+
+From this repo, run:
+
+```sh
+claude --plugin-dir .
+```
+
+The plugin exposes:
+
+- `skills/architecture-coach/SKILL.md` for host-mediated interview workflow
+- `.mcp.json` for the local `tech-coach` MCP server
+- `bin/archcoach` for CLI fallback assessment
+- `bin/archcoach-mcp` for MCP stdio launch
+- `.claude-plugin/plugin.json` for Claude Code user configuration
+
+Safe defaults are local and advisory: no external credentials are required.
+Hook configuration is present but inert in this story; lifecycle behavior is
+introduced separately.

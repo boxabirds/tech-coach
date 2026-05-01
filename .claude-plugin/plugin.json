@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "tech-coach",
+  "version": "0.1.0",
+  "description": "Architecture coaching for Claude Code with local MCP tools, a deterministic CLI, and host-mediated interview guidance.",
+  "author": {
+    "name": "boxabirds"
+  },
+  "repository": "https://github.com/boxabirds/tech-coach",
+  "license": "MIT",
+  "keywords": [
+    "architecture",
+    "coach",
+    "mcp",
+    "claude-code"
+  ],
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json",
+  "mcpServers": "./.mcp.json",
+  "userConfig": {
+    "coach_mode": {
+      "type": "string",
+      "title": "Coach mode",
+      "description": "Architecture coaching intensity: advisory, balanced, or strict.",
+      "default": "advisory"
+    },
+    "memory_location": {
+      "type": "string",
+      "title": "Memory location",
+      "description": "Where architecture decision memory should live: project, user, or external.",
+      "default": "project"
+    },
+    "evaluator": {
+      "type": "string",
+      "title": "Evaluator",
+      "description": "Assessment runtime: local, host, or external.",
+      "default": "local"
+    },
+    "external_endpoint": {
+      "type": "string",
+      "title": "External evaluator endpoint",
+      "description": "Optional endpoint used only when evaluator is external.",
+      "required": false
+    },
+    "external_token": {
+      "type": "string",
+      "title": "External evaluator token",
+      "description": "Optional token used only when evaluator is external.",
+      "sensitive": true,
+      "required": false
+    }
+  }
+}

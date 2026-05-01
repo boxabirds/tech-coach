@@ -1,0 +1,17 @@
+#!/usr/bin/env sh
+set -eu
+
+ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+MCP_ARTIFACT="$ROOT_DIR/dist/mcp-server.js"
+MCP_SOURCE="$ROOT_DIR/mcp/server/index.ts"
+
+if [ -f "$MCP_SOURCE" ] && command -v bun >/dev/null 2>&1; then
+  exec bun "$MCP_SOURCE" "$@"
+fi
+
+if [ -f "$MCP_ARTIFACT" ]; then
+  exec node "$MCP_ARTIFACT" "$@"
+fi
+
+echo "Missing bundled runtime artifact: dist/mcp-server.js, and bun is not available. Run 'bun run build:mcp' first." >&2
+exit 1
