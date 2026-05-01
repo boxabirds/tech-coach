@@ -1,0 +1,97 @@
+{
+  "schemaVersion": "tech-coach.code-intelligence.v1",
+  "producer": {
+    "name": "tree-sitter",
+    "engine": "rust",
+    "version": "fixture"
+  },
+  "repoRoot": "/repo",
+  "languages": [
+    {
+      "id": "typescript",
+      "files": 3,
+      "parsed": 2,
+      "skipped": 1,
+      "failed": 0,
+      "parser": "tree-sitter-typescript",
+      "variants": ["ts", "tsx"]
+    }
+  ],
+  "files": [
+    {
+      "path": "src/pages/ProjectEditor.tsx",
+      "languageId": "typescript",
+      "parsed": true
+    },
+    {
+      "path": "src/lib/projectStorage.ts",
+      "languageId": "typescript",
+      "parsed": true
+    },
+    {
+      "path": "src/generated/huge.ts",
+      "languageId": "typescript",
+      "parsed": false,
+      "skipped": true
+    }
+  ],
+  "symbols": [
+    {
+      "name": "ProjectEditor",
+      "kind": "function",
+      "languageId": "typescript",
+      "location": {
+        "file": "src/pages/ProjectEditor.tsx",
+        "startLine": 12,
+        "endLine": 88
+      },
+      "complexity": 9
+    },
+    {
+      "name": "saveProject",
+      "kind": "function",
+      "languageId": "typescript",
+      "location": {
+        "file": "src/lib/projectStorage.ts",
+        "startLine": 4,
+        "endLine": 18
+      },
+      "complexity": 2
+    }
+  ],
+  "dependencies": [
+    {
+      "source": "src/pages/ProjectEditor.tsx",
+      "target": "../lib/projectStorage",
+      "kind": "import",
+      "languageId": "typescript",
+      "location": {
+        "file": "src/pages/ProjectEditor.tsx",
+        "startLine": 3
+      }
+    },
+    {
+      "source": "src/pages/ProjectEditor.tsx",
+      "target": "saveProject",
+      "kind": "call",
+      "languageId": "typescript",
+      "location": {
+        "file": "src/pages/ProjectEditor.tsx",
+        "startLine": 54
+      }
+    }
+  ],
+  "complexity": {
+    "unitCount": 2,
+    "totalCyclomaticComplexity": 11,
+    "maxUnitCyclomaticComplexity": 9
+  },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "message": "generated file skipped",
+      "file": "src/generated/huge.ts",
+      "languageId": "typescript"
+    }
+  ]
+}

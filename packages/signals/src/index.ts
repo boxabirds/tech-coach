@@ -22,6 +22,7 @@ export type OptionalSignalResult = {
   confidence: EvidenceConfidence;
   evidence: string[];
   error?: string;
+  family?: string;
 };
 
 export type SignalContext = {
@@ -29,8 +30,33 @@ export type SignalContext = {
   changedFiles: string[];
   userRequest?: string;
   recentRequests: string[];
+  knownFiles?: string[];
+  diagnostics?: string[];
+  testSummary?: {
+    status?: string;
+    summary?: string;
+  };
+  runtimeErrors?: string[];
+  monitorEvents?: string[];
 };
 
 export interface OptionalSignalProvider {
-  collect(context: SignalContext): OptionalSignalResult;
+  name?: string;
+  collect(
+    context: SignalContext,
+  ):
+    | OptionalSignalResult
+    | OptionalSignalResult[]
+    | undefined
+    | null
+    | Promise<OptionalSignalResult | OptionalSignalResult[] | undefined | null>;
 }
+
+export * from "./config.js";
+export * from "./codeIntelligence.js";
+export * from "./codeIntelligenceTypes.js";
+export * from "./diagnostics.js";
+export * from "./fileTree.js";
+export * from "./gitDiff.js";
+export * from "./providerRunner.js";
+export * from "./runtime.js";

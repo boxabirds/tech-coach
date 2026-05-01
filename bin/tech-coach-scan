@@ -1,0 +1,10 @@
+#!/usr/bin/env node
+import { readFileSync } from "node:fs";
+
+const fixturePath = process.argv[2];
+if (!fixturePath) {
+  console.error("usage: tech-coach-scan <code-intelligence-report.json>");
+  process.exit(2);
+}
+
+process.stdout.write(readFileSync(fixturePath, "utf8"));
