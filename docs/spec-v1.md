@@ -194,6 +194,43 @@ Operationalize
 Stop and decide
 ```
 
+The conversion from signal to action must pass through explicit architecture
+principles and structural patterns. Signals should not directly say "extract a
+React hook" or "add a database." Signals say what is true: responsibilities are
+mixed, changes are spreading, persistence is becoming durable, or contracts are
+being depended on. The kernel then maps that evidence through principles such
+as:
+
+```text
+separation of concerns
+right-sized abstraction
+clear ownership
+stable contract
+reversible decision
+testability
+operational readiness
+```
+
+Pattern recommendations are concrete instances of those principles:
+
+```text
+Mixed React page responsibilities
+  Principle: separation of concerns + clear ownership.
+  Add now: extract state/effects into a custom hook.
+  Contract: component renders; hook owns orchestration; repository owns storage.
+  Do not add yet: global state framework unless cross-page shared state is real.
+
+Project persistence becoming load-bearing
+  Principle: stable contract + reversible decision.
+  Add now: insert a ProjectRepository boundary and name the Project shape.
+  Contract: UI depends on repository behavior, not storage substrate.
+  Do not add yet: server database unless sharing, sync, querying, or migration
+  pressure exists.
+```
+
+This keeps the coach pragmatic: it can give specific refactoring advice without
+turning every signal into a technology-specific rule.
+
 ### 6. Model Maturity Per Concern
 
 The whole repository does not have one maturity level. Each architectural
@@ -233,6 +270,9 @@ Responsibilities:
 - extract signals from request, diff, repo, tests, and memory
 - classify concern maturity
 - detect threshold crossings
+- map concerns to explicit architecture principles
+- select concrete structural patterns when evidence supports them
+- describe the boundary contract created by a recommendation
 - choose an intervention level
 - choose an entropy-reducing action
 - update or query architecture memory
@@ -745,6 +785,86 @@ revisit threshold
 
 Thresholds are semantic classifications, not keyword matches.
 
+## Principle And Pattern Policy
+
+The coach uses a deterministic policy layer between baseline synthesis and
+recommendation formatting.
+
+```text
+signals -> baseline concerns -> principles -> structural patterns -> advice
+```
+
+### Principle Catalog
+
+The initial principle catalog should include:
+
+```text
+separation of concerns
+  A unit is carrying multiple reasons to change.
+
+right-sized abstraction
+  A named boundary is warranted, but a larger framework or platform is not.
+
+clear ownership
+  There is ambiguity about the source of truth or responsible module.
+
+stable contract
+  Other code, users, hosts, or external callers depend on behavior staying
+  coherent.
+
+reversible decision
+  The correct end-state is not fully visible, so the next structure should keep
+  options open.
+
+testability
+  Behavior is becoming load-bearing enough that a harness should protect it.
+
+operational readiness
+  The system is exposed to production, users, incidents, secrets, or recovery
+  expectations.
+```
+
+### Structural Pattern Catalog
+
+Patterns are concern-specific expressions of principles. They are only selected
+when evidence supports them.
+
+```text
+React state ownership
+  Evidence: UI file mixes rendering, effects, persistence calls, and domain
+  transformation, or repeated state behavior appears across pages.
+  Add now: extract a custom hook or named state owner.
+  Contract: component renders; hook owns orchestration; storage boundary owns
+  persistence.
+  Do not add yet: global state library without cross-route shared state.
+
+Repository boundary
+  Evidence: persistence survives sessions, is reused, or is gaining query,
+  migration, sharing, or sync pressure.
+  Add now: insert a repository/client boundary and name the domain object.
+  Contract: callers depend on domain behavior, not localStorage/files/database.
+  Do not add yet: database or backend until substrate pressure is real.
+
+API contract
+  Evidence: request/response shape is depended on by another module, host,
+  partner, or user workflow.
+  Add now: record the contract and protect compatibility with tests.
+  Contract: caller and provider agree on behavior and failure modes.
+  Do not add yet: public API guarantees when usage is still internal and
+  exploratory.
+
+Targeted test harness
+  Evidence: a boundary is introduced or load-bearing behavior is changing.
+  Add now: tests around the new contract.
+  Contract: tests verify behavior at the boundary, not internal incidental
+  implementation.
+  Do not add yet: broad end-to-end suites when unit or integration coverage is
+  enough.
+```
+
+If evidence is weak, stale, or conflicting, the policy must return provisional
+guidance or missing-evidence prompts instead of pretending certainty.
+
 ## Action Model
 
 ### Intervention Levels
@@ -1157,12 +1277,19 @@ Required fixtures:
    - Signal: second or third page copies filter state and URL serialization.
    - Expected: threshold `repetition` and `state ownership`.
    - Expected action: `Name` or `Extract`.
+   - Expected pattern: custom hook or named state owner if evidence shows mixed
+     rendering, effects, or orchestration.
+   - Expected contract: component renders; extracted owner handles state and
+     side effects.
    - Forbidden: recommending full app-wide state management without evidence.
 
 3. **Persistence appears**
    - Signal: saved projects added via localStorage.
    - Expected: threshold `persistence`.
    - Expected action: `Insert boundary` and `Record decision`.
+   - Expected pattern: repository boundary before substrate replacement.
+   - Expected contract: UI depends on project persistence behavior, not the
+     storage mechanism.
    - Forbidden: requiring server database unless sharing/sync is present.
 
 4. **Persistence assumption expires**
@@ -1194,6 +1321,7 @@ Required fixtures:
    - Expected: intervention against premature structure.
    - Expected action: `Localize`.
    - Must produce `do_not_add`.
+   - Must explain the smaller sufficient contract for now.
 
 9. **Public API contract**
    - Signal: external endpoint request/response shape changes.

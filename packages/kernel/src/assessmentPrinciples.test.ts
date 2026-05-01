@@ -1,0 +1,70 @@
+import { describe, expect, it } from "vitest";
+import { assessArchitecture } from "./assessment.js";
+import {
+  exploratoryEvent,
+  reactStateOwnershipEvent,
+  storageBoundaryEvent,
+  weakStorageEvent,
+} from "./__fixtures__/principles/scenarios.js";
+
+describe("assessment principle guidance", () => {
+  it("attaches custom-hook structural guidance for mixed React state ownership", () => {
+    const result = assessArchitecture({ event: reactStateOwnershipEvent });
+    const guidance = result.principleGuidance.find(
+      (item) => item.concern === "state_ownership",
+    );
+
+    expect(guidance?.principles.map((principle) => principle.id)).toEqual(
+      expect.arrayContaining(["separation_of_concerns", "clear_ownership"]),
+    );
+    expect(guidance?.patterns[0]).toMatchObject({
+      pattern: "extract_custom_hook",
+      addNow: expect.stringContaining("custom hook"),
+      doNotAddYet: expect.stringContaining("global state"),
+    });
+    expect(guidance?.contract).toMatchObject({
+      owner: expect.stringContaining("custom hook"),
+      tests: expect.stringContaining("hook behavior"),
+    });
+  });
+
+  it("attaches repository-boundary guidance without database escalation", () => {
+    const result = assessArchitecture({ event: storageBoundaryEvent });
+    const guidance = result.principleGuidance.find(
+      (item) => item.concern === "data_storage",
+    );
+
+    expect(guidance?.patterns[0]).toMatchObject({
+      pattern: "insert_repository_boundary",
+      addNow: expect.stringContaining("repository"),
+      doNotAddYet: expect.stringContaining("server database"),
+    });
+    expect(guidance?.contract).toMatchObject({
+      owner: expect.stringContaining("repository"),
+      exclusions: expect.stringContaining("server database"),
+    });
+  });
+
+  it("keeps exploratory work free of added structure guidance", () => {
+    const result = assessArchitecture({ event: exploratoryEvent });
+
+    expect(result.action).toBe("Continue");
+    expect(result.principleGuidance).toEqual([]);
+    expect(result.doNotAdd).toEqual([
+      "Do not add durable architecture structure until there is concrete project evidence.",
+    ]);
+  });
+
+  it("marks weak evidence as provisional rather than certain", () => {
+    const result = assessArchitecture({ event: weakStorageEvent });
+    const guidance = result.principleGuidance.find(
+      (item) => item.concern === "data_storage",
+    );
+
+    expect(guidance?.principles.every((principle) => principle.confidence === "low")).toBe(true);
+    expect(guidance?.patterns[0]).toMatchObject({
+      confidence: "low",
+    });
+    expect(guidance?.contract?.provisional).toContain("provisional");
+  });
+});

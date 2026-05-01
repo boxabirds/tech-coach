@@ -21,6 +21,12 @@ import {
   assertValidTelemetryBundle,
   telemetryFromEvent,
 } from "./telemetry.js";
+import { selectArchitecturePrinciples } from "./principles.js";
+import {
+  describeBoundaryContract,
+  selectStructuralPatterns,
+} from "./patterns.js";
+import type { PrincipleGuidance } from "./principleTypes.js";
 import type {
   ArchitecturalTelemetryBundle,
   SignalEnvelope,
@@ -48,6 +54,7 @@ export type AssessmentResult = {
   baseline: ArchitectureBaseline;
   questions: BaselineQuestion[];
   revisitAlerts: RevisitAlert[];
+  principleGuidance: PrincipleGuidance[];
 };
 
 export type AssessmentInput = {
@@ -104,6 +111,7 @@ export function assessArchitecture(input: AssessmentInput): AssessmentResult {
     records: normalized.memoryRecords,
     telemetry: normalized.telemetry,
   });
+  const principleGuidance = buildPrincipleGuidance(baseline);
 
   const recommendation = chooseRecommendation(baseline, questions, revisitAlerts);
   return {
@@ -122,6 +130,7 @@ export function assessArchitecture(input: AssessmentInput): AssessmentResult {
     baseline,
     questions,
     revisitAlerts,
+    principleGuidance,
   };
 }
 
@@ -257,6 +266,39 @@ function actionForConcern(concern: ArchitectureConcern): CoachAction {
     default:
       return "Record decision";
   }
+}
+
+function buildPrincipleGuidance(
+  baseline: ArchitectureBaseline,
+): PrincipleGuidance[] {
+  return baseline.concerns
+    .map((concern): PrincipleGuidance | undefined => {
+      if (concern.facts.length === 0) {
+        return undefined;
+      }
+      const principles = selectArchitecturePrinciples({
+        concern,
+        facts: baseline.facts,
+      });
+      const patterns = selectStructuralPatterns({
+        concern,
+        principles,
+        facts: baseline.facts,
+      });
+      if (principles.length === 0 && patterns.length === 0) {
+        return undefined;
+      }
+      const contract = patterns[0]
+        ? describeBoundaryContract({ pattern: patterns[0], concern })
+        : undefined;
+      return {
+        concern: concern.concern,
+        principles,
+        patterns,
+        ...(contract ? { contract } : {}),
+      };
+    })
+    .filter((guidance): guidance is PrincipleGuidance => Boolean(guidance));
 }
 
 function doNotAddGuidance(
