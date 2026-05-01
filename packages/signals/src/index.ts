@@ -9,7 +9,8 @@ export type EvidenceCategory =
   | "test_posture"
   | "diagnostic"
   | "runtime_error"
-  | "monitor_event";
+  | "monitor_event"
+  | "history_interaction";
 
 export type EvidenceFreshness = "current" | "stale" | "unknown";
 export type EvidenceConfidence = "low" | "medium" | "high";
@@ -23,6 +24,7 @@ export type OptionalSignalResult = {
   evidence: string[];
   error?: string;
   family?: string;
+  interactionGuidance?: unknown;
 };
 
 export type SignalContext = {
@@ -58,5 +60,10 @@ export * from "./codeIntelligenceTypes.js";
 export * from "./diagnostics.js";
 export * from "./fileTree.js";
 export * from "./gitDiff.js";
+export * from "./gitHistory.js";
+export * from "./historyProviders.js";
+export * from "./historyTypes.js";
 export * from "./providerRunner.js";
 export * from "./runtime.js";
+export * from "./transcripts.js";
+export * from "./ceetrixHistory.js";

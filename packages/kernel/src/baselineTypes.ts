@@ -6,6 +6,7 @@ import type {
   ProtocolValidationIssue,
 } from "./protocol.js";
 import type { OptionalSignalResult } from "../../signals/src/index.js";
+import type { InteractionGuidance } from "../../signals/src/historyTypes.js";
 import type { ArchitecturalTelemetryBundle } from "./telemetryTypes.js";
 
 export type BaselineFactStatus =
@@ -112,6 +113,7 @@ export type BaselineQuestion = {
   relatedUnknownIds: string[];
   relatedSignalIds: string[];
   options?: string[];
+  interactionGuidance?: InteractionGuidance;
 };
 
 export type BaselineAnswer = {

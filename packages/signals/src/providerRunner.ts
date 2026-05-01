@@ -36,6 +36,7 @@ const validCategories = new Set<EvidenceCategory>([
   "diagnostic",
   "runtime_error",
   "monitor_event",
+  "history_interaction",
 ]);
 
 export async function runOptionalSignalProviders(
@@ -210,6 +211,7 @@ export function familyForCategory(category: EvidenceCategory): Exclude<SignalFam
   switch (category) {
     case "file_layout":
     case "configuration_boundary":
+    case "history_interaction":
       return "repository";
     case "changed_file_spread":
     case "import_relationship":

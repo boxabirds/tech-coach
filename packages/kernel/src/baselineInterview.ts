@@ -9,9 +9,16 @@ import type {
 } from "./baselineTypes.js";
 import type {
   ArchitecturalTelemetryBundle,
+  LifecycleSignal,
+  RepositorySignal,
   SignalEnvelope,
   SignalFamily,
 } from "./telemetryTypes.js";
+import type {
+  InteractionGuidance,
+  LanguageComfort,
+  QuestionStyle,
+} from "../../signals/src/historyTypes.js";
 
 type QuestionCandidate = BaselineQuestion & {
   score: number;
@@ -56,6 +63,7 @@ export function planBaselineInterviewQuestions(
     return [];
   }
 
+  const interactionGuidance = interactionGuidanceFromTelemetry(input.telemetry);
   const candidates = [
     ...questionCandidatesFromFacts(input),
     ...questionCandidatesFromUnknowns(input),
@@ -75,7 +83,9 @@ export function planBaselineInterviewQuestions(
       right.score - left.score || left.rankKey.localeCompare(right.rankKey)
     )
     .slice(0, limit)
-    .map(({ score: _score, rankKey: _rankKey, ...question }) => question);
+    .map(({ score: _score, rankKey: _rankKey, ...question }) =>
+      applyInteractionGuidance(question, interactionGuidance)
+    );
 }
 
 export const baselineInterviewPlanner: BaselineInterviewPlanner = {
@@ -201,6 +211,266 @@ function allSignals(telemetry: ArchitecturalTelemetryBundle): AnySignal[] {
     ...telemetry.memory,
     ...telemetry.runtime,
   ];
+}
+
+function interactionGuidanceFromTelemetry(
+  telemetry: ArchitecturalTelemetryBundle | undefined,
+): InteractionGuidance | undefined {
+  if (!telemetry) {
+    return undefined;
+  }
+
+  const historyGuidance = telemetry.repository
+    .map((signal) => readInteractionGuidance(signal))
+    .find((guidance): guidance is InteractionGuidance => Boolean(guidance));
+  const currentStyle = questionStyleFromCurrentRequest(telemetry.lifecycle);
+
+  if (!currentStyle) {
+    return historyGuidance;
+  }
+
+  return {
+    languageComfort: languageComfortForCurrentStyle(
+      currentStyle,
+      historyGuidance?.languageComfort,
+    ),
+    questionStyle: currentStyle,
+    rationale: historyGuidance
+      ? `Current request overrides history-derived question style. ${historyGuidance.rationale}`
+      : "Current request sets the interaction style for this turn.",
+    suggestedQuestion: suggestedQuestionForStyle(currentStyle),
+  };
+}
+
+function readInteractionGuidance(
+  signal: SignalEnvelope<RepositorySignal>,
+): InteractionGuidance | undefined {
+  const details = signal.payload.details;
+  if (!details || !isRecord(details.interactionGuidance)) {
+    return undefined;
+  }
+  const guidance = details.interactionGuidance;
+  if (
+    isLanguageComfort(guidance.languageComfort)
+    && isQuestionStyle(guidance.questionStyle)
+    && typeof guidance.rationale === "string"
+    && typeof guidance.suggestedQuestion === "string"
+  ) {
+    return {
+      languageComfort: guidance.languageComfort,
+      questionStyle: guidance.questionStyle,
+      rationale: guidance.rationale,
+      suggestedQuestion: guidance.suggestedQuestion,
+    };
+  }
+  return undefined;
+}
+
+function questionStyleFromCurrentRequest(
+  lifecycle: SignalEnvelope<LifecycleSignal>[],
+): QuestionStyle | undefined {
+  const latest = lifecycle.at(-1)?.payload;
+  const text = [
+    latest?.userRequest,
+    ...(latest?.recentRequests.slice(-2) ?? []),
+  ].join("\n").toLowerCase();
+
+  if (containsAny(text, ["gdpr", "privacy", "compliance", "audit", "retention", "deletion"])) {
+    return "risk_compliance";
+  }
+  if (containsAny(text, ["sql", "nosql", "database", "technical", "tradeoff", "architecture"])) {
+    return "technical_choice";
+  }
+  if (containsAny(text, ["user outcome", "business", "customer", "workflow", "sharing", "search", "export"])) {
+    return "business_outcome";
+  }
+  return undefined;
+}
+
+function applyInteractionGuidance(
+  question: BaselineQuestion,
+  guidance: InteractionGuidance | undefined,
+): BaselineQuestion {
+  if (!guidance) {
+    return question;
+  }
+
+  return {
+    ...question,
+    interactionGuidance: guidance,
+    prompt: guidedPrompt(question, guidance.questionStyle),
+  };
+}
+
+function guidedPrompt(
+  question: BaselineQuestion,
+  style: QuestionStyle,
+): string {
+  switch (question.concern) {
+    case "data_storage":
+      return storagePromptForStyle(style, question.prompt);
+    case "authentication":
+      return authPromptForStyle(style, question.prompt);
+    case "authorization":
+      return authorizationPromptForStyle(style, question.prompt);
+    case "deployment":
+      return deploymentPromptForStyle(style, question.prompt);
+    case "api_contract":
+      return apiPromptForStyle(style, question.prompt);
+    case "state_ownership":
+      return statePromptForStyle(style, question.prompt);
+    case "testing":
+      return testingPromptForStyle(style, question.prompt);
+    case "observability":
+      return observabilityPromptForStyle(style, question.prompt);
+    default:
+      return fallbackPromptForStyle(style, question.prompt);
+  }
+}
+
+function storagePromptForStyle(style: QuestionStyle, fallback: string): string {
+  switch (style) {
+    case "technical_choice":
+      return "Do you want the coach to assume SQL/relational storage, document/NoSQL storage, or local-only storage for now?";
+    case "business_outcome":
+      return "What user outcome should storage support next: search, sharing, export, audit, deletion, or offline use?";
+    case "risk_compliance":
+      return "Are there privacy, retention, deletion, access-control, audit, or GDPR obligations the storage design must preserve?";
+    case "guided_default":
+      return fallback;
+  }
+}
+
+function authPromptForStyle(style: QuestionStyle, fallback: string): string {
+  switch (style) {
+    case "technical_choice":
+      return "Which identity boundary should the coach assume: no auth, local-only user, session login, or external identity provider?";
+    case "business_outcome":
+      return "Who needs access to this system next, and what should they be able to do?";
+    case "risk_compliance":
+      return "Are there account, session, credential, or audit obligations the authentication design must preserve?";
+    case "guided_default":
+      return fallback;
+  }
+}
+
+function authorizationPromptForStyle(style: QuestionStyle, fallback: string): string {
+  switch (style) {
+    case "technical_choice":
+      return "Should the coach assume no roles, admin-only controls, role-based access, or resource-level permissions?";
+    case "business_outcome":
+      return "Which user groups or workflows need different access rules?";
+    case "risk_compliance":
+      return "Are there permission, segregation-of-duty, audit, or data-access obligations the authorization design must preserve?";
+    case "guided_default":
+      return fallback;
+  }
+}
+
+function deploymentPromptForStyle(style: QuestionStyle, fallback: string): string {
+  switch (style) {
+    case "technical_choice":
+      return "Should the coach assume local-only use, private hosting, public hosting, or production service deployment?";
+    case "business_outcome":
+      return "Who needs to use this outside your machine, and how reliable does access need to be?";
+    case "risk_compliance":
+      return "Are there hosting, data residency, audit, rollback, or operational obligations the deployment design must preserve?";
+    case "guided_default":
+      return fallback;
+  }
+}
+
+function apiPromptForStyle(style: QuestionStyle, fallback: string): string {
+  switch (style) {
+    case "technical_choice":
+      return "Should the coach treat this API as internal only, stable internal, public, or depended on by external systems?";
+    case "business_outcome":
+      return "Which product or partner workflow needs this API to remain stable?";
+    case "risk_compliance":
+      return "Are there compatibility, access-control, audit, or versioning obligations this API contract must preserve?";
+    case "guided_default":
+      return fallback;
+  }
+}
+
+function statePromptForStyle(style: QuestionStyle, fallback: string): string {
+  switch (style) {
+    case "technical_choice":
+      return "Should the coach assume this state is component-local, shared client state, server-owned, or persistent workflow state?";
+    case "business_outcome":
+      return "Which user workflow should state changes protect from being lost or inconsistent?";
+    case "risk_compliance":
+      return "Are there consistency, recovery, audit, or deletion obligations this state design must preserve?";
+    case "guided_default":
+      return fallback;
+  }
+}
+
+function testingPromptForStyle(style: QuestionStyle, fallback: string): string {
+  switch (style) {
+    case "technical_choice":
+      return "What test level should the coach trust here: unit, integration, end-to-end, manual verification, or none yet?";
+    case "business_outcome":
+      return "Which user workflow would be most costly if this change broke?";
+    case "risk_compliance":
+      return "Are there security, privacy, compliance, or rollback risks that need explicit test evidence?";
+    case "guided_default":
+      return fallback;
+  }
+}
+
+function observabilityPromptForStyle(style: QuestionStyle, fallback: string): string {
+  switch (style) {
+    case "technical_choice":
+      return "What runtime evidence should the coach trust: logs, metrics, traces, health checks, alerts, or manual reports?";
+    case "business_outcome":
+      return "Which user-visible failure would you need to detect quickly?";
+    case "risk_compliance":
+      return "Are there audit, incident, retention, or availability obligations runtime monitoring must preserve?";
+    case "guided_default":
+      return fallback;
+  }
+}
+
+function fallbackPromptForStyle(style: QuestionStyle, fallback: string): string {
+  switch (style) {
+    case "technical_choice":
+      return `${fallback} If there is a technical preference, state it; otherwise the coach will choose a reversible default.`;
+    case "business_outcome":
+      return `${fallback} Tie the answer to the user or business outcome that matters next.`;
+    case "risk_compliance":
+      return `${fallback} Include any privacy, security, retention, access-control, or audit obligations.`;
+    case "guided_default":
+      return fallback;
+  }
+}
+
+function languageComfortForCurrentStyle(
+  style: QuestionStyle,
+  fallback: LanguageComfort | undefined,
+): LanguageComfort {
+  switch (style) {
+    case "technical_choice":
+      return fallback === "outcome_oriented" ? "mixed" : "technical";
+    case "business_outcome":
+    case "risk_compliance":
+      return fallback === "technical" ? "mixed" : "outcome_oriented";
+    case "guided_default":
+      return fallback ?? "unknown";
+  }
+}
+
+function suggestedQuestionForStyle(style: QuestionStyle): string {
+  switch (style) {
+    case "technical_choice":
+      return "Do you have a technical preference for this boundary, or should the coach choose a reversible default?";
+    case "business_outcome":
+      return "What user outcome should this architecture decision protect next?";
+    case "risk_compliance":
+      return "Are there privacy, retention, access-control, audit, or compliance obligations the coach should preserve?";
+    case "guided_default":
+      return "The coach can use a reversible default for now; is that acceptable?";
+  }
 }
 
 function relatedSignalsForFact(
@@ -376,6 +646,32 @@ function optionsForConcern(concern: ArchitectureConcern): string[] | undefined {
 
 function isConflictText(message: string): boolean {
   return /\b(conflict|conflicting|contradict|contradiction)\b/i.test(message);
+}
+
+function containsAny(text: string, terms: string[]): boolean {
+  return terms.some((term) => text.includes(term));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isLanguageComfort(value: unknown): value is LanguageComfort {
+  return (
+    value === "technical"
+    || value === "mixed"
+    || value === "outcome_oriented"
+    || value === "unknown"
+  );
+}
+
+function isQuestionStyle(value: unknown): value is QuestionStyle {
+  return (
+    value === "technical_choice"
+    || value === "business_outcome"
+    || value === "risk_compliance"
+    || value === "guided_default"
+  );
 }
 
 function stableQuestionId(

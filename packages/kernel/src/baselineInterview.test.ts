@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { planBaselineInterviewQuestions } from "./baselineInterview.js";
 import { synthesizeArchitectureBaseline } from "./baseline.js";
-import { emptyTelemetryBundle, telemetryFromEvidence } from "./telemetry.js";
+import { emptyTelemetryBundle, telemetryFromEvent, telemetryFromEvidence } from "./telemetry.js";
+import { collectHistoryInteractionEvidence } from "../../signals/src/historyProviders.js";
 import {
   baseEvent,
   brownfieldEvent,
@@ -118,5 +119,121 @@ describe("planBaselineInterviewQuestions", () => {
     const telemetry = emptyTelemetryBundle();
 
     expect(planBaselineInterviewQuestions({ baseline, telemetry })).toEqual([]);
+  });
+
+  it("uses history guidance to ask technical-choice brownfield questions", () => {
+    const history = collectHistoryInteractionEvidence({
+      cwd: "/repo",
+      transcripts: [
+        { speaker: "user", text: "Refactor storage into an API boundary and SQL schema." },
+        { speaker: "user", text: "Extract the repository interface and tests." },
+      ],
+      gitCommits: [],
+      ceetrixRecords: [],
+    });
+    const event = {
+      ...brownfieldEvent,
+      optionalSignals: [
+        signal("storage", "symbol_reference", "low", [
+          "ProjectStorage may move from localStorage to a shared database",
+        ]),
+        ...history.evidence,
+      ],
+    };
+    const telemetry = telemetryFromEvent(event, {
+      capturedAt: "2026-05-01T09:00:00.000Z",
+      correlationId: "history-technical",
+    });
+    const baseline = synthesizeArchitectureBaseline({ event, telemetry });
+
+    const question = planBaselineInterviewQuestions({ baseline, telemetry })
+      .find((item) => item.concern === "data_storage");
+
+    expect(question).toMatchObject({
+      concern: "data_storage",
+      interactionGuidance: expect.objectContaining({
+        languageComfort: "technical",
+        questionStyle: "technical_choice",
+      }),
+    });
+    expect(question?.prompt).toContain("SQL/relational storage");
+  });
+
+  it("lets current request risk language override history question style", () => {
+    const history = collectHistoryInteractionEvidence({
+      cwd: "/repo",
+      transcripts: [
+        { speaker: "user", text: "Refactor storage into an API boundary and SQL schema." },
+        { speaker: "user", text: "Extract the repository interface and tests." },
+      ],
+      gitCommits: [],
+      ceetrixRecords: [],
+    });
+    const event = {
+      ...brownfieldEvent,
+      userRequest: "Add saved projects with GDPR deletion and retention support.",
+      optionalSignals: [
+        signal("storage", "symbol_reference", "low", [
+          "ProjectStorage may move from localStorage to a shared database",
+        ]),
+        ...history.evidence,
+      ],
+    };
+    const telemetry = telemetryFromEvent(event, {
+      capturedAt: "2026-05-01T09:00:00.000Z",
+      correlationId: "history-risk",
+    });
+    const baseline = synthesizeArchitectureBaseline({ event, telemetry });
+
+    const question = planBaselineInterviewQuestions({ baseline, telemetry })
+      .find((item) => item.concern === "data_storage");
+
+    expect(question?.interactionGuidance).toMatchObject({
+      languageComfort: "mixed",
+      questionStyle: "risk_compliance",
+    });
+    expect(question?.interactionGuidance?.rationale).toContain("Current request overrides");
+    expect(question?.prompt).toContain("GDPR obligations");
+  });
+
+  it("uses outcome-oriented history without leaking transcript details", () => {
+    const history = collectHistoryInteractionEvidence({
+      cwd: "/repo",
+      transcripts: [
+        {
+          speaker: "user",
+          text: "Customer workflow needs export and sharing for dana@example.com in /Users/dana/app.",
+        },
+      ],
+      gitCommits: [],
+      ceetrixRecords: [],
+    });
+    const event = {
+      ...brownfieldEvent,
+      optionalSignals: [
+        signal("storage", "symbol_reference", "low", [
+          "ProjectStorage writes saved projects to localStorage",
+        ]),
+        ...history.evidence,
+      ],
+    };
+    const telemetry = telemetryFromEvent(event, {
+      capturedAt: "2026-05-01T09:00:00.000Z",
+      correlationId: "history-outcome",
+    });
+    const baseline = synthesizeArchitectureBaseline({ event, telemetry });
+
+    const question = planBaselineInterviewQuestions({ baseline, telemetry })
+      .find((item) => item.concern === "data_storage");
+    const serializedQuestion = JSON.stringify(question);
+
+    expect(question?.interactionGuidance).toMatchObject({
+      languageComfort: "outcome_oriented",
+      questionStyle: "business_outcome",
+    });
+    expect(question?.prompt).toContain("What user outcome should storage support next");
+    expect(serializedQuestion).not.toContain("dana@example.com");
+    expect(serializedQuestion).not.toContain("/Users/dana/app");
+    expect(serializedQuestion).not.toMatch(/\b(novice|expert|naive|sophisticated)\b/i);
   });
 });

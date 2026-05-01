@@ -380,7 +380,12 @@ function addSignalFromOptionalEvidence(
         ...envelopeBase,
         family,
         scope: "repo",
-        payload: { category, repoRoot: "", evidence },
+        payload: {
+          category,
+          repoRoot: "",
+          evidence,
+          details: detailsFromOptionalEvidence(signal),
+        },
       });
       break;
     case "change":
@@ -512,6 +517,7 @@ function familyForCategory(category: string): Exclude<SignalFamily, "lifecycle" 
   switch (category) {
     case "file_layout":
     case "configuration_boundary":
+    case "history_interaction":
       return "repository";
     case "changed_file_spread":
     case "import_relationship":
@@ -580,6 +586,22 @@ function readEvidenceArray(value: unknown): string[] {
 function readString(value: Record<string, unknown>, key: string): string | undefined {
   const result = value[key];
   return typeof result === "string" ? result : undefined;
+}
+
+function detailsFromOptionalEvidence(
+  signal: CompatibleEvidence,
+): Record<string, unknown> | undefined {
+  if (!isRecord(signal)) {
+    return undefined;
+  }
+  const details: Record<string, unknown> = {};
+  if ("interactionGuidance" in signal) {
+    details.interactionGuidance = signal.interactionGuidance;
+  }
+  if ("details" in signal && isRecord(signal.details)) {
+    Object.assign(details, signal.details);
+  }
+  return Object.keys(details).length > 0 ? details : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
