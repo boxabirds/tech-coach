@@ -14,6 +14,7 @@ import {
   collectRepositoryTelemetry,
 } from "../../persistence/src/index.js";
 import type { ArchitecturalTelemetryBundle } from "../../kernel/src/telemetryTypes.js";
+import { evaluateClaudeStopGate } from "./stopGate.js";
 
 export type ClaudeLifecycleKind =
   | "SessionStart"
@@ -95,7 +96,8 @@ export function handleClaudeHookEvent(
     return diagnosticResponse("Malformed Tech Lead hook input.", error, config, "UserPromptSubmit");
   }
 
-  if (event.kind === "Stop" && isStopLoopGuardActive(event, runtime.env ?? process.env)) {
+  const stopLoopGuardActive = isStopLoopGuardActive(event, runtime.env ?? process.env);
+  if (event.kind === "Stop" && stopLoopGuardActive) {
     return withAudit(event, { effect: "none" });
   }
 
@@ -109,10 +111,6 @@ export function handleClaudeHookEvent(
     );
   }
 
-  if (event.kind === "Stop") {
-    return withAudit(event, { effect: "none" });
-  }
-
   try {
     const now = runtime.now?.() ?? new Date().toISOString();
     const collected = (runtime.collectTelemetry ?? collectClaudeHookTelemetry)(event, now);
@@ -120,6 +118,22 @@ export function handleClaudeHookEvent(
       event: collected.event,
       telemetry: collected.telemetry,
     });
+    if (event.kind === "Stop") {
+      const gate = evaluateClaudeStopGate({
+        mode: config.mode,
+        assessment,
+        telemetry: collected.telemetry,
+        loopGuardActive: stopLoopGuardActive,
+      });
+      if (gate.outcome === "finish" || gate.outcome === "note") {
+        return withAudit(event, { effect: "none", message: gate.message });
+      }
+      return withAudit(event, {
+        effect: "block",
+        message: gate.message ?? gate.reason ?? "Resolve the architecture completion gate before stopping.",
+      });
+    }
+
     if (!shouldSurfaceAssessment(assessment)) {
       return withAudit(event, { effect: "none" });
     }
