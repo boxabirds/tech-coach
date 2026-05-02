@@ -12,7 +12,13 @@ import type {
 import type { BaselineQuestion } from "../../kernel/src/baselineTypes.js";
 import {
   collectRepositoryTelemetry,
+  openPersistenceStore,
+  type StoreOptions,
 } from "../../persistence/src/index.js";
+import {
+  buildLifecycleAuditRecord,
+} from "../../persistence/src/lifecycle.js";
+import type { LifecycleAuditRecord } from "../../persistence/src/types.js";
 import type { ArchitecturalTelemetryBundle } from "../../kernel/src/telemetryTypes.js";
 import { evaluateClaudeStopGate } from "./stopGate.js";
 
@@ -42,6 +48,14 @@ export type HookAuditRecord = {
   kind: ClaudeLifecycleKind;
   cwd: string;
   effect: HookResponse["effect"];
+  mode?: CoachMode;
+  action?: string;
+  intervention?: InterventionLevel;
+  evidence?: string[];
+  questionIds?: string[];
+  correlationId?: string;
+  createdAt?: string;
+  degraded?: boolean;
   reason?: string;
 };
 
@@ -69,8 +83,21 @@ export type HookRuntime = {
     telemetry: ArchitecturalTelemetryBundle;
   };
   assess?: (input: AssessmentInput) => AssessmentResult;
+  recordAudit?: (record: LifecycleAuditRecord) => void;
   env?: Record<string, string | undefined>;
 };
+
+export function recordLifecycleAudit(
+  record: LifecycleAuditRecord,
+  storeOptions: StoreOptions = {},
+): void {
+  const store = openPersistenceStore(record.repoRoot, storeOptions);
+  try {
+    store.appendLifecycleAudit(record);
+  } finally {
+    store.close();
+  }
+}
 
 const supportedKinds = new Set<ClaudeLifecycleKind>([
   "SessionStart",
@@ -98,16 +125,22 @@ export function handleClaudeHookEvent(
 
   const stopLoopGuardActive = isStopLoopGuardActive(event, runtime.env ?? process.env);
   if (event.kind === "Stop" && stopLoopGuardActive) {
-    return withAudit(event, { effect: "none" });
+    return finalizeResponse(event, { effect: "none", message: "Stop loop guard is already active." }, config, runtime, {
+      now: runtime.now?.() ?? new Date().toISOString(),
+    });
   }
 
   if (event.kind === "SessionStart") {
+    const now = runtime.now?.() ?? new Date().toISOString();
     const context = (runtime.readMemoryContext ?? readDefaultMemoryContext)(event.cwd);
-    return withAudit(
+    return finalizeResponse(
       event,
       context
         ? { effect: "inject", message: formatSessionContext(context) }
         : { effect: "none" },
+      config,
+      runtime,
+      { now },
     );
   }
 
@@ -126,29 +159,50 @@ export function handleClaudeHookEvent(
         loopGuardActive: stopLoopGuardActive,
       });
       if (gate.outcome === "finish" || gate.outcome === "note") {
-        return withAudit(event, { effect: "none", message: gate.message });
+        return finalizeResponse(event, { effect: "none", message: gate.message }, config, runtime, {
+          now,
+          assessment,
+          telemetry: collected.telemetry,
+        });
       }
-      return withAudit(event, {
+      return finalizeResponse(event, {
         effect: "block",
         message: gate.message ?? gate.reason ?? "Resolve the architecture completion gate before stopping.",
+      }, config, runtime, {
+        now,
+        assessment,
+        telemetry: collected.telemetry,
       });
     }
 
     if (!shouldSurfaceAssessment(assessment)) {
-      return withAudit(event, { effect: "none" });
+      return finalizeResponse(event, { effect: "none" }, config, runtime, {
+        now,
+        assessment,
+        telemetry: collected.telemetry,
+      });
     }
 
     const message = formatAssessmentSignpost(assessment);
-    const canBlock = shouldBlock(assessment.intervention, config.mode);
-    return withAudit(event, {
-      effect: canBlock ? "block" : "inject",
+    return finalizeResponse(event, {
+      effect: effectForAssessment(assessment.intervention, config.mode),
       message,
       interviewRequired: assessment.questions.slice(0, 3),
+    }, config, runtime, {
+      now,
+      assessment,
+      telemetry: collected.telemetry,
     });
   } catch (error) {
-    return withAudit(
+    return finalizeResponse(
       event,
       diagnosticResponse("Tech Lead lifecycle assessment failed.", error, config, event.kind),
+      config,
+      runtime,
+      {
+        now: runtime.now?.() ?? new Date().toISOString(),
+        degraded: true,
+      },
     );
   }
 }
@@ -252,11 +306,20 @@ function shouldSurfaceAssessment(assessment: AssessmentResult): boolean {
   return !nonActionableReasons.has(assessment.reason);
 }
 
-function shouldBlock(intervention: InterventionLevel, mode: CoachMode): boolean {
-  if (intervention !== "block") {
-    return false;
+export function effectForAssessment(
+  intervention: InterventionLevel,
+  mode: CoachMode,
+): HookResponse["effect"] {
+  if (mode === "advisory") {
+    return "inject";
   }
-  return mode === "balanced" || mode === "strict";
+  if (intervention === "block") {
+    return "block";
+  }
+  if (mode === "strict" && intervention === "recommend") {
+    return "block";
+  }
+  return "inject";
 }
 
 function formatAssessmentSignpost(assessment: AssessmentResult): string {
@@ -331,14 +394,49 @@ function diagnosticResponse(
   };
 }
 
-function withAudit(event: ClaudeLifecycleEvent, response: HookResponse): HookResponse {
+function finalizeResponse(
+  event: ClaudeLifecycleEvent,
+  response: HookResponse,
+  config: CoachModeConfig,
+  runtime: HookRuntime,
+  context: {
+    now: string;
+    assessment?: AssessmentResult;
+    telemetry?: ArchitecturalTelemetryBundle;
+    degraded?: boolean;
+  },
+): HookResponse {
+  const auditRecord = buildLifecycleAuditRecord({
+    kind: event.kind,
+    repoRoot: event.cwd,
+    mode: config.mode,
+    effect: response.effect,
+    createdAt: context.now,
+    reason: response.message?.split("\n")[0],
+    assessment: context.assessment,
+    telemetry: context.telemetry,
+    degraded: context.degraded,
+  });
+  try {
+    runtime.recordAudit?.(auditRecord);
+  } catch {
+    // Hooks must never fail or loop because audit persistence is unavailable.
+  }
   return {
     ...response,
-    audit: response.audit ?? {
+    audit: {
       kind: event.kind,
       cwd: event.cwd,
       effect: response.effect,
-      ...(response.message ? { reason: response.message.split("\n")[0] } : {}),
+      mode: config.mode,
+      action: context.assessment?.action,
+      intervention: context.assessment?.intervention,
+      evidence: auditRecord.evidence,
+      questionIds: auditRecord.questionIds,
+      correlationId: auditRecord.correlationId,
+      createdAt: auditRecord.createdAt,
+      degraded: auditRecord.degraded,
+      ...(auditRecord.reason ? { reason: auditRecord.reason } : {}),
     },
   };
 }

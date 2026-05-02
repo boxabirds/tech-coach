@@ -138,6 +138,61 @@ describe("repo-local persistence integration", () => {
       rmSync(repoB, { recursive: true, force: true });
     }
   });
+
+  maybeIt("persists compact lifecycle audit records without creating oversized artifacts", () => {
+    const repo = tempRepo();
+    const store = new TechLeadPersistenceStore(repo);
+
+    try {
+      store.appendLifecycleAudit({
+        auditId: "audit-session-start",
+        repoRoot: repo,
+        kind: "SessionStart",
+        mode: "advisory",
+        effect: "inject",
+        createdAt: "2026-05-01T00:00:00.000Z",
+        correlationId: "session-1",
+        action: "Continue",
+        intervention: "note",
+        reason: "Loaded compact context.",
+        evidence: ["latest assessment projection exists"],
+        questionIds: [],
+        degraded: false,
+      });
+      store.appendLifecycleAudit({
+        auditId: "audit-stop",
+        repoRoot: repo,
+        kind: "Stop",
+        mode: "strict",
+        effect: "block",
+        createdAt: "2026-05-01T00:01:00.000Z",
+        correlationId: "session-1",
+        action: "Record decision",
+        intervention: "recommend",
+        reason: "Open decision remains.",
+        evidence: ["question still open"],
+        questionIds: ["question-storage"],
+        degraded: false,
+      });
+
+      expect(store.listLifecycleAudit()).toEqual([
+        expect.objectContaining({
+          auditId: "audit-session-start",
+          kind: "SessionStart",
+          effect: "inject",
+        }),
+        expect.objectContaining({
+          auditId: "audit-stop",
+          kind: "Stop",
+          effect: "block",
+          questionIds: ["question-storage"],
+        }),
+      ]);
+    } finally {
+      store.close();
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
 });
 
 function tempRepo(): string {

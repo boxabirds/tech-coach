@@ -9,6 +9,7 @@ import type { ArchitecturalTelemetryBundle } from "../../kernel/src/telemetryTyp
 import type { CoachEventEnvelope } from "../../kernel/src/protocol.js";
 import {
   collectClaudeHookTelemetry,
+  effectForAssessment,
   handleClaudeHookEvent,
   normalizeClaudeLifecycleEvent,
   renderClaudeHookOutput,
@@ -32,6 +33,20 @@ describe("Claude lifecycle hook adapter", () => {
       changedFiles: [],
     });
     expect(event.cwd).toBe(process.cwd());
+  });
+
+  it("normalizes all supported Claude lifecycle events and rejects unsupported events", () => {
+    for (const kind of ["SessionStart", "UserPromptSubmit", "PostToolBatch", "Stop"] as const) {
+      expect(normalizeClaudeLifecycleEvent({
+        hook_event_name: kind,
+        cwd: process.cwd(),
+      })).toMatchObject({ kind });
+    }
+
+    expect(() => normalizeClaudeLifecycleEvent({
+      hook_event_name: "PreToolUse",
+      cwd: process.cwd(),
+    })).toThrow(/unsupported hook event/);
   });
 
   it("injects compact SessionStart context when project memory exists", () => {
@@ -99,6 +114,51 @@ describe("Claude lifecycle hook adapter", () => {
     expect(response.interviewRequired?.map((question) => question.id)).toEqual([
       "question-data-sharing",
     ]);
+    expect(response.audit).toMatchObject({
+      kind: "UserPromptSubmit",
+      mode: "advisory",
+      effect: "inject",
+      action: "Insert boundary",
+      intervention: "recommend",
+      questionIds: ["question-data-sharing"],
+    });
+  });
+
+  it("applies the lifecycle mode matrix outside Stop gates", () => {
+    expect(effectForAssessment("recommend", "advisory")).toBe("inject");
+    expect(effectForAssessment("recommend", "balanced")).toBe("inject");
+    expect(effectForAssessment("recommend", "strict")).toBe("block");
+    expect(effectForAssessment("block", "balanced")).toBe("block");
+    expect(effectForAssessment("block", "strict")).toBe("block");
+  });
+
+  it("blocks recommend-level findings in strict mode before planning continues", () => {
+    const response = handleClaudeHookEvent(
+      {
+        hook_event_name: "UserPromptSubmit",
+        cwd: process.cwd(),
+        prompt: "Add production sharing",
+      },
+      { mode: "strict" },
+      {
+        now: () => "2026-05-01T00:00:00.000Z",
+        collectTelemetry: collectFixture,
+        assess: () => assessmentFixture({
+          intervention: "recommend",
+          action: "Record decision",
+          reason: "Baseline has a high-impact unconfirmed assumption.",
+        }),
+      },
+    );
+
+    expect(response.effect).toBe("block");
+    expect(response.audit).toMatchObject({
+      mode: "strict",
+      effect: "block",
+      action: "Record decision",
+      intervention: "recommend",
+      correlationId: "UserPromptSubmit-2026-05-01T00:00:00.000Z",
+    });
   });
 
   it("does not surface low-risk Continue results", () => {
@@ -120,6 +180,78 @@ describe("Claude lifecycle hook adapter", () => {
     );
 
     expect(response.effect).toBe("none");
+    expect(response.audit).toMatchObject({
+      kind: "UserPromptSubmit",
+      effect: "none",
+      action: "Continue",
+      intervention: "note",
+    });
+  });
+
+  it("records compact audit records through an optional runtime sink", () => {
+    const auditRecords: unknown[] = [];
+    const response = handleClaudeHookEvent(
+      {
+        hook_event_name: "PostToolBatch",
+        cwd: process.cwd(),
+      },
+      { mode: "balanced" },
+      {
+        now: () => "2026-05-01T00:00:00.000Z",
+        collectTelemetry: collectFixture,
+        assess: () => assessmentFixture({
+          action: "Split module",
+          intervention: "recommend",
+          evidence: [{
+            family: "change",
+            source: "event.changedFiles",
+            category: "changed_file_spread",
+            summary: "Change touches source and config boundaries.",
+          }],
+        }),
+        recordAudit: (record) => auditRecords.push(record),
+      },
+    );
+
+    expect(response.effect).toBe("inject");
+    expect(auditRecords).toEqual([
+      expect.objectContaining({
+        kind: "PostToolBatch",
+        mode: "balanced",
+        effect: "inject",
+        action: "Split module",
+        intervention: "recommend",
+        evidence: ["Change touches source and config boundaries."],
+        degraded: false,
+      }),
+    ]);
+  });
+
+  it("degrades safely when audit persistence fails", () => {
+    const response = handleClaudeHookEvent(
+      {
+        hook_event_name: "UserPromptSubmit",
+        cwd: process.cwd(),
+        prompt: "Add sharing",
+      },
+      { mode: "balanced" },
+      {
+        collectTelemetry: collectFixture,
+        assess: () => assessmentFixture({
+          action: "Record decision",
+          intervention: "recommend",
+        }),
+        recordAudit: () => {
+          throw new Error("store unavailable");
+        },
+      },
+    );
+
+    expect(response.effect).toBe("inject");
+    expect(response.audit).toMatchObject({
+      kind: "UserPromptSubmit",
+      effect: "inject",
+    });
   });
 
   it("injects PostToolBatch drift feedback once per batch", () => {
@@ -188,6 +320,11 @@ describe("Claude lifecycle hook adapter", () => {
     );
 
     expect(response.effect).toBe("none");
+    expect(response.audit).toMatchObject({
+      kind: "Stop",
+      effect: "none",
+      reason: "Stop loop guard is already active.",
+    });
   });
 
   it("renders Claude-valid hook output for injected context and blocks", () => {

@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import type {
   AssessmentRunSnapshot,
   ConfirmPersistedDecisionInput,
+  LifecycleAuditRecord,
   PersistedAnswer,
   PersistedDecision,
   PersistenceDiagnostic,
@@ -185,6 +186,42 @@ export class TechLeadPersistenceStore {
     return decision;
   }
 
+  appendLifecycleAudit(record: LifecycleAuditRecord): LifecycleAuditRecord {
+    this.database.query(
+      `insert into lifecycle_audit (
+        audit_id, repo_root, kind, mode, effect, created_at, correlation_id,
+        action, intervention, reason, audit_json
+      ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      on conflict(audit_id) do update set
+        effect = excluded.effect,
+        action = excluded.action,
+        intervention = excluded.intervention,
+        reason = excluded.reason,
+        audit_json = excluded.audit_json`,
+    ).run(
+      record.auditId,
+      record.repoRoot,
+      record.kind,
+      record.mode,
+      record.effect,
+      record.createdAt,
+      record.correlationId,
+      record.action ?? null,
+      record.intervention ?? null,
+      record.reason ?? null,
+      stringify(record),
+    );
+    return record;
+  }
+
+  listLifecycleAudit(): LifecycleAuditRecord[] {
+    return this.database.query(
+      "select audit_json from lifecycle_audit order by created_at asc, audit_id asc",
+    ).all().map((row) =>
+      parseJsonField(row as Record<string, unknown>, "audit_json") as LifecycleAuditRecord
+    );
+  }
+
   listDecisions(): PersistedDecision[] {
     return this.database.query(
       "select decision_json from decisions order by confirmed_at asc, decision_id asc",
@@ -247,6 +284,19 @@ export class TechLeadPersistenceStore {
         path text not null,
         updated_at text not null,
         primary key (run_id, name)
+      );
+      create table if not exists lifecycle_audit (
+        audit_id text primary key,
+        repo_root text not null,
+        kind text not null,
+        mode text not null,
+        effect text not null,
+        created_at text not null,
+        correlation_id text not null,
+        action text,
+        intervention text,
+        reason text,
+        audit_json text not null
       );
     `);
     this.setMeta("schema_version", "1");

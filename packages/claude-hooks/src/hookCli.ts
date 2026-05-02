@@ -2,6 +2,7 @@
 import {
   handleClaudeHookEvent,
   readConfigFromEnv,
+  recordLifecycleAudit,
   renderClaudeHookOutput,
   type ClaudeLifecycleKind,
 } from "./hookAdapter.js";
@@ -19,7 +20,9 @@ export async function runHookCli(
     ? { ...parsed, hook_event_name: parsed.hook_event_name ?? forcedKind }
     : parsed;
   try {
-    const response = handleClaudeHookEvent(input, readConfigFromEnv());
+    const response = handleClaudeHookEvent(input, readConfigFromEnv(), {
+      recordAudit: recordLifecycleAudit,
+    });
     const kind = (input.hook_event_name ?? forcedKind) as ClaudeLifecycleKind;
     stdout.write(renderClaudeHookOutput(kind, response));
     return 0;

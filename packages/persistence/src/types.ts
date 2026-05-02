@@ -25,6 +25,22 @@ export type PersistenceDiagnostic = {
   source?: string;
 };
 
+export type LifecycleAuditRecord = {
+  auditId: string;
+  repoRoot: string;
+  kind: string;
+  mode: "advisory" | "balanced" | "strict";
+  effect: "none" | "inject" | "block";
+  createdAt: string;
+  correlationId: string;
+  action?: string;
+  intervention?: string;
+  reason?: string;
+  evidence: string[];
+  questionIds: string[];
+  degraded: boolean;
+};
+
 export type PersistedQuestionState = "open" | "answered" | "skipped" | "obsolete";
 
 export type PersistedAnswer = BaselineAnswer & {
