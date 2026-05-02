@@ -112,6 +112,8 @@ Call `architecture.get_assessment_node` when you need the detail and related edg
 
 Call `architecture.assess_change` only when the user clearly asks for a quick, read-only check of a specific pending change and no repository artifacts should be created.
 
+Call `architecture.review_usage` when the user asks whether Tech Lead has been used, whether Claude engaged it during recent work, or how often hooks and MCP graph tools were involved. This returns a local privacy-preserving usage summary; do not inspect raw Claude transcripts first unless the user explicitly asks for transcript analysis.
+
 Use either path when a change may affect:
 
 - persistent storage, database shape, files used as data stores, or migrations

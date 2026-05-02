@@ -2,6 +2,7 @@ import type { AssessmentInput, AssessmentResult } from "../../kernel/src/assessm
 import type { BaselineAnswer, BaselineQuestion } from "../../kernel/src/baselineTypes.js";
 import type { DecisionRecord } from "../../kernel/src/memory.js";
 import type { ArchitecturalTelemetryBundle } from "../../kernel/src/telemetryTypes.js";
+import type { UsageEvent } from "../../kernel/src/usageEvents.js";
 
 export const defaultPersistenceDir = ".ceetrix/tech-lead";
 export const defaultDatabaseFile = "tech-lead.db";
@@ -91,6 +92,16 @@ export type LatestAssessmentPack = {
   artifacts?: ArtifactPaths;
   storePath: string;
 };
+
+export type UsageEventQuery = {
+  repoId?: string;
+  repoRoot?: string;
+  sessionId?: string;
+  since?: string;
+  until?: string;
+};
+
+export type PersistedUsageEvent = UsageEvent;
 
 export type CaptureAssessmentInput = {
   repoRoot?: string;

@@ -118,6 +118,7 @@ describe("Claude Code plugin assets", () => {
     expect(skillText).toContain("architecture.capture_assessment");
     expect(skillText).toContain("architecture.query_assessment_graph");
     expect(skillText).toContain("architecture.get_assessment_node");
+    expect(skillText).toContain("architecture.review_usage");
     expect(skillText).toContain("Capture returns a bounded assessment graph index");
     expect(skillText).toContain("architecture.answer_question");
     expect(skillText).toContain("Prior decision records are optional context");

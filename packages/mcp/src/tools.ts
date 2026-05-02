@@ -1,4 +1,5 @@
 import { basename, dirname, join, resolve } from "node:path";
+import { randomUUID } from "node:crypto";
 import {
   assessArchitecture,
   AssessmentValidationError,
@@ -34,6 +35,11 @@ import {
   assertValidTelemetryBundle,
   telemetryFromEvent,
 } from "../../kernel/src/telemetry.js";
+import {
+  buildUsageReview,
+  classifyUsageEvent,
+  type UsageReview,
+} from "../../kernel/src/usageEvents.js";
 import {
   TelemetryValidationError,
   type ArchitecturalTelemetryBundle,
@@ -73,7 +79,8 @@ export type ArchitectureCoachToolName =
   | "architecture.record_decision"
   | "architecture.check_revisit_triggers"
   | "architecture.get_memory"
-  | "architecture.scan_repository";
+  | "architecture.scan_repository"
+  | "architecture.review_usage";
 
 export type ToolErrorCode =
   | "invalid_input"
@@ -214,6 +221,10 @@ export const architectureTools: ToolDescriptor[] = [
     "architecture.scan_repository",
     "Convert supplied host event and optional evidence into a typed architectural telemetry bundle.",
   ),
+  descriptor(
+    "architecture.review_usage",
+    "Summarize local Tech Lead usage events by repository, session, source, engagement type, and missed-engagement candidates.",
+  ),
 ];
 
 export function listArchitectureTools(): ToolDescriptor[] {
@@ -225,43 +236,62 @@ export function invokeArchitectureTool(
   input: unknown,
   runtime: ArchitectureToolRuntime = {},
 ): ToolResult {
+  let result: ToolResult;
   try {
     switch (name) {
       case "architecture.assess_change":
-        return success(name, assessChange(input, runtime));
+        result = success(name, assessChange(input, runtime));
+        break;
       case "architecture.capture_assessment":
-        return success(name, captureAssessmentTool(input, runtime));
+        result = success(name, captureAssessmentTool(input, runtime));
+        break;
       case "architecture.query_assessment_graph":
-        return success(name, queryAssessmentGraphTool(input, runtime));
+        result = success(name, queryAssessmentGraphTool(input, runtime));
+        break;
       case "architecture.get_assessment_node":
-        return success(name, getAssessmentNodeTool(input, runtime));
+        result = success(name, getAssessmentNodeTool(input, runtime));
+        break;
       case "architecture.plan_interview":
-        return success(name, planInterview(input));
+        result = success(name, planInterview(input));
+        break;
       case "architecture.apply_interview_answers":
-        return success(name, applyInterviewAnswers(input));
+        result = success(name, applyInterviewAnswers(input));
+        break;
       case "architecture.answer_question":
-        return success(name, answerQuestion(input, runtime));
+        result = success(name, answerQuestion(input, runtime));
+        break;
       case "architecture.horizon_scan":
-        return success(name, horizonScan(input, runtime));
+        result = success(name, horizonScan(input, runtime));
+        break;
       case "architecture.review_structure":
-        return success(name, reviewStructure(input, runtime));
+        result = success(name, reviewStructure(input, runtime));
+        break;
       case "architecture.record_decision":
-        return success(name, recordDecision(input, runtime));
+        result = success(name, recordDecision(input, runtime));
+        break;
       case "architecture.check_revisit_triggers":
-        return success(name, checkRevisitTriggers(input, runtime));
+        result = success(name, checkRevisitTriggers(input, runtime));
+        break;
       case "architecture.get_memory":
-        return success(name, getMemory(input, runtime));
+        result = success(name, getMemory(input, runtime));
+        break;
       case "architecture.scan_repository":
-        return success(name, scanRepository(input));
+        result = success(name, scanRepository(input));
+        break;
+      case "architecture.review_usage":
+        result = success(name, reviewUsage(input, runtime));
+        break;
       default:
-        return failure(name, {
+        result = failure(name, {
           code: "invalid_input",
           message: `Unsupported architecture tool ${(name as string) || "unknown"}.`,
         });
     }
   } catch (error) {
-    return failure(name, errorToToolError(error));
+    result = failure(name, errorToToolError(error));
   }
+  recordMcpUsage(name, input, runtime, result);
+  return result;
 }
 
 export function assessChange(
@@ -520,6 +550,38 @@ export function scanRepository(input: unknown): ArchitecturalTelemetryBundle {
   });
 }
 
+export function reviewUsage(
+  input: unknown,
+  runtime: ArchitectureToolRuntime = {},
+): UsageReview {
+  const value = requireRecord(input, "input");
+  const repoRoot = readRepoRoot(value, runtime);
+  const store = openPersistenceStore(repoRoot, {
+    ...(typeof value.persistenceDir === "string" ? { persistenceDir: value.persistenceDir } : {}),
+    ...(typeof value.databaseFile === "string" ? { databaseFile: value.databaseFile } : {}),
+  });
+  try {
+    const events = store.listUsageEvents({
+      repoRoot,
+      repoId: readString(value.repoId),
+      sessionId: readString(value.sessionId),
+      since: readString(value.since),
+      until: readString(value.until),
+    });
+    return buildUsageReview(events, {
+      repoRoot,
+      repoId: readString(value.repoId),
+      sessionId: readString(value.sessionId),
+      since: readString(value.since),
+      until: readString(value.until),
+      limit: readBoundedNumber(value.limit),
+      cursor: readString(value.cursor),
+    });
+  } finally {
+    store.close();
+  }
+}
+
 function withOptionalMemory(
   input: unknown,
   runtime: ArchitectureToolRuntime,
@@ -637,6 +699,51 @@ function appendDecision(
     : new ProjectMemoryStore(repoRoot, options);
   store.append(record);
   return store.memoryPath;
+}
+
+function recordMcpUsage(
+  name: ArchitectureCoachToolName,
+  input: unknown,
+  runtime: ArchitectureToolRuntime,
+  result: ToolResult,
+): void {
+  if (!isRecord(input)) {
+    return;
+  }
+  const repoRoot = readActiveProjectRoot(input);
+  if (!repoRoot) {
+    return;
+  }
+  const usage = classifyUsageEvent({
+    source: "mcp",
+    toolName: name,
+    error: !result.ok,
+  });
+  try {
+    const store = openPersistenceStore(repoRoot, {
+      ...(typeof input.persistenceDir === "string" ? { persistenceDir: input.persistenceDir } : {}),
+      ...(typeof input.databaseFile === "string" ? { databaseFile: input.databaseFile } : {}),
+    });
+    try {
+      store.appendUsageEvent({
+        id: `usage-mcp-${name.replace(/[^a-zA-Z0-9]+/g, "-")}-${randomUUID()}`,
+        repoRoot,
+        sessionId: readString(input.sessionId),
+        source: "mcp",
+        engagementType: usage.engagementType,
+        outcome: usage.outcome,
+        metadata: {
+          ...usage.metadata,
+          ok: result.ok,
+          ...(result.ok ? {} : { errorCode: result.error.code }),
+        },
+      });
+    } finally {
+      store.close();
+    }
+  } catch {
+    // Usage logging must never alter MCP tool behavior.
+  }
 }
 
 function readActiveProjectRoot(value: Record<string, unknown>): string | undefined {

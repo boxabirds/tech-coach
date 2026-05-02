@@ -5,10 +5,16 @@ import type {
   AssessmentRunSnapshot,
   ConfirmPersistedDecisionInput,
   LifecycleAuditRecord,
+  PersistedUsageEvent,
   PersistedAnswer,
   PersistedDecision,
   PersistenceDiagnostic,
+  UsageEventQuery,
 } from "./types.js";
+import {
+  normalizeUsageEvent,
+  type UsageEventInput,
+} from "../../kernel/src/usageEvents.js";
 import {
   defaultDatabaseFile,
   defaultPersistenceDir,
@@ -222,6 +228,48 @@ export class TechLeadPersistenceStore {
     );
   }
 
+  appendUsageEvent(input: UsageEventInput): PersistedUsageEvent {
+    const event = normalizeUsageEvent({
+      ...input,
+      repoRoot: input.repoRoot || this.repoRoot,
+      repoId: input.repoId ?? this.repoRoot,
+    });
+    this.database.query(
+      `insert into usage_events (
+        event_id, repo_id, repo_root, session_id, source, engagement_type,
+        outcome, occurred_at, metadata_json, event_json
+      ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      on conflict(event_id) do update set
+        outcome = excluded.outcome,
+        metadata_json = excluded.metadata_json,
+        event_json = excluded.event_json`,
+    ).run(
+      event.id,
+      event.repoId,
+      event.repoRoot,
+      event.sessionId ?? null,
+      event.source,
+      event.engagementType,
+      event.outcome,
+      event.occurredAt,
+      stringify(event.metadata),
+      stringify(event),
+    );
+    return event;
+  }
+
+  listUsageEvents(query: UsageEventQuery = {}): PersistedUsageEvent[] {
+    return this.database.query(
+      "select event_json from usage_events order by occurred_at asc, event_id asc",
+    ).all()
+      .map((row) => parseJsonField(row as Record<string, unknown>, "event_json") as PersistedUsageEvent)
+      .filter((event) => !query.repoId || event.repoId === query.repoId)
+      .filter((event) => !query.repoRoot || event.repoRoot === query.repoRoot)
+      .filter((event) => !query.sessionId || event.sessionId === query.sessionId)
+      .filter((event) => !query.since || event.occurredAt >= query.since!)
+      .filter((event) => !query.until || event.occurredAt <= query.until!);
+  }
+
   listDecisions(): PersistedDecision[] {
     return this.database.query(
       "select decision_json from decisions order by confirmed_at asc, decision_id asc",
@@ -298,8 +346,20 @@ export class TechLeadPersistenceStore {
         reason text,
         audit_json text not null
       );
+      create table if not exists usage_events (
+        event_id text primary key,
+        repo_id text not null,
+        repo_root text not null,
+        session_id text,
+        source text not null,
+        engagement_type text not null,
+        outcome text not null,
+        occurred_at text not null,
+        metadata_json text not null,
+        event_json text not null
+      );
     `);
-    this.setMeta("schema_version", "1");
+    this.setMeta("schema_version", "2");
   }
 
   private setMeta(key: string, value: string): void {

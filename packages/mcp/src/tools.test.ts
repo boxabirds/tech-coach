@@ -36,6 +36,7 @@ describe("architecture MCP tool contracts", () => {
       "architecture.check_revisit_triggers",
       "architecture.get_memory",
       "architecture.scan_repository",
+      "architecture.review_usage",
     ]);
   });
 
@@ -379,6 +380,50 @@ describe("architecture MCP tool contracts", () => {
       rmSync(globalRoot, { recursive: true, force: true });
       rmSync(repoA, { recursive: true, force: true });
       rmSync(repoB, { recursive: true, force: true });
+    }
+  });
+
+  it("reviews privacy-safe usage events recorded by MCP tools", () => {
+    const repo = tempRoot();
+
+    try {
+      const capture = invokeArchitectureTool("architecture.capture_assessment", {
+        repoRoot: repo,
+        event: { ...thresholdEvent, cwd: repo, userRequest: "capture this repo baseline" },
+      });
+      expect(capture.ok).toBe(true);
+
+      const graph = invokeArchitectureTool("architecture.query_assessment_graph", {
+        repoRoot: repo,
+        nodeTypes: ["claim"],
+        limit: 2,
+      });
+      expect(graph.ok).toBe(true);
+
+      const review = invokeArchitectureTool("architecture.review_usage", {
+        repoRoot: repo,
+        limit: 10,
+      });
+
+      expect(review.ok).toBe(true);
+      expect(review.ok ? review.result : undefined).toMatchObject({
+        summary: {
+          byEngagementType: expect.objectContaining({
+            baseline_capture: 1,
+            graph_query: 1,
+          }),
+          bySource: expect.objectContaining({
+            mcp: 2,
+          }),
+        },
+        events: expect.arrayContaining([
+          expect.objectContaining({ engagementType: "baseline_capture" }),
+          expect.objectContaining({ engagementType: "graph_query" }),
+        ]),
+      });
+      expect(JSON.stringify(review.ok ? review.result : {})).not.toContain("capture this repo baseline");
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
     }
   });
 

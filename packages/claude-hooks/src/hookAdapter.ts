@@ -5,6 +5,10 @@ import {
   type AssessmentInput,
   type AssessmentResult,
 } from "../../kernel/src/assessment.js";
+import {
+  classifyUsageEvent,
+  type UsageEventInput,
+} from "../../kernel/src/usageEvents.js";
 import type {
   CoachEventEnvelope,
   InterventionLevel,
@@ -84,6 +88,7 @@ export type HookRuntime = {
   };
   assess?: (input: AssessmentInput) => AssessmentResult;
   recordAudit?: (record: LifecycleAuditRecord) => void;
+  recordUsage?: (record: UsageEventInput) => void;
   env?: Record<string, string | undefined>;
 };
 
@@ -94,6 +99,18 @@ export function recordLifecycleAudit(
   const store = openPersistenceStore(record.repoRoot, storeOptions);
   try {
     store.appendLifecycleAudit(record);
+  } finally {
+    store.close();
+  }
+}
+
+export function recordUsageEvent(
+  record: UsageEventInput,
+  storeOptions: StoreOptions = {},
+): void {
+  const store = openPersistenceStore(record.repoRoot, storeOptions);
+  try {
+    store.appendUsageEvent(record);
   } finally {
     store.close();
   }
@@ -509,6 +526,33 @@ function finalizeResponse(
     runtime.recordAudit?.(auditRecord);
   } catch {
     // Hooks must never fail or loop because audit persistence is unavailable.
+  }
+  try {
+    const usage = classifyUsageEvent({
+      source: "hook",
+      hookEffect: response.effect,
+      architectureRelevant: isArchitectureRelevantPrompt(event.userRequest),
+      baselineExists: Boolean(readDefaultMemoryContext(event.cwd)),
+      error: context.degraded,
+    });
+    runtime.recordUsage?.({
+      id: `usage-${auditRecord.auditId}`,
+      occurredAt: auditRecord.createdAt,
+      repoRoot: event.cwd,
+      sessionId: event.sessionId,
+      source: "hook",
+      engagementType: usage.engagementType,
+      outcome: usage.outcome,
+      metadata: {
+        ...usage.metadata,
+        lifecycleKind: event.kind,
+        mode: config.mode,
+        effect: response.effect,
+        ...(context.assessment?.action ? { action: context.assessment.action } : {}),
+      },
+    });
+  } catch {
+    // Usage logging is diagnostic only and must not affect the hook contract.
   }
   return {
     ...response,

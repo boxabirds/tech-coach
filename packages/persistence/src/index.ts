@@ -4,3 +4,4 @@ export * from "./lifecycle.js";
 export * from "./repositorySignals.js";
 export * from "./store.js";
 export * from "./types.js";
+export type * from "../../kernel/src/usageEvents.js";

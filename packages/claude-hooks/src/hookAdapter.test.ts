@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import type { AssessmentResult } from "../../kernel/src/assessment.js";
 import type { ArchitecturalTelemetryBundle } from "../../kernel/src/telemetryTypes.js";
 import type { CoachEventEnvelope } from "../../kernel/src/protocol.js";
+import type { UsageEventInput } from "../../kernel/src/usageEvents.js";
 import {
   collectClaudeHookTelemetry,
   effectForAssessment,
@@ -121,6 +122,49 @@ describe("Claude lifecycle hook adapter", () => {
     expect(response.message).toContain("Tech Lead baseline context is available");
     expect(response.message).toContain("architecture.query_assessment_graph");
     expect(response.message).toContain("grounded default recommendation first");
+  });
+
+  it("records privacy-safe usage events for hook engagement", () => {
+    const repo = mkdtempSync(join(tmpdir(), "tech-lead-hook-usage-"));
+    const usage: UsageEventInput[] = [];
+    mkdirSync(join(repo, ".ceetrix", "tech-lead"), { recursive: true });
+    writeFileSync(join(repo, ".ceetrix", "tech-lead", "latest-assessment.md"), "# baseline\n");
+
+    const response = handleClaudeHookEvent(
+      {
+        hook_event_name: "UserPromptSubmit",
+        cwd: repo,
+        session_id: "session-usage",
+        prompt: "how do I create a local-only version of Ceetrix?",
+      },
+      { mode: "advisory" },
+      {
+        collectTelemetry: collectFixture,
+        assess: () => assessmentFixture({
+          status: "ok",
+          action: "Continue",
+          intervention: "note",
+          reason: "Current evidence does not require adding structure yet.",
+        }),
+        recordUsage: (record) => usage.push(record),
+      },
+    );
+
+    expect(response.effect).toBe("inject");
+    expect(usage).toEqual([
+      expect.objectContaining({
+        repoRoot: repo,
+        sessionId: "session-usage",
+        source: "hook",
+        engagementType: "followup_injection",
+        outcome: "engaged",
+        metadata: expect.objectContaining({
+          lifecycleKind: "UserPromptSubmit",
+          effect: "inject",
+        }),
+      }),
+    ]);
+    expect(JSON.stringify(usage)).not.toContain("local-only version");
   });
 
   it("does not inject follow-up Tech Lead guidance for ordinary chat after a baseline exists", () => {
