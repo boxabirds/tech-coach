@@ -1,0 +1,102 @@
+{
+  "event": {
+    "host": "portable-fixture",
+    "event": "PostToolBatch",
+    "cwd": "/repo",
+    "userRequest": "Add saved project sharing and keep current project storage",
+    "recentRequests": ["Add saved projects", "Add project tags"],
+    "changedFiles": [
+      "src/components/ProjectFilters.tsx",
+      "src/lib/projectStorage.ts",
+      "src/pages/ProjectEditor.tsx"
+    ],
+    "repoSignals": {
+      "status": "present",
+      "evidence": ["React app with src/pages, src/components, and src/lib entrypoints"]
+    },
+    "testSummary": {
+      "status": "not_run",
+      "summary": "Tests were not run after this change"
+    },
+    "memoryRefs": [],
+    "priorDecisions": [],
+    "optionalSignals": [
+      {
+        "source": "layout",
+        "status": "present",
+        "category": "file_layout",
+        "freshness": "current",
+        "confidence": "high",
+        "evidence": ["React app with src/pages, src/components, and src/lib entrypoints"]
+      },
+      {
+        "source": "config",
+        "status": "present",
+        "category": "configuration_boundary",
+        "freshness": "current",
+        "confidence": "high",
+        "evidence": ["projectStorage repository writes project data to localStorage"]
+      },
+      {
+        "source": "imports",
+        "status": "present",
+        "category": "import_relationship",
+        "freshness": "current",
+        "confidence": "medium",
+        "evidence": ["ProjectEditor imports projectStorage and ProjectFilters uses URL serialization"]
+      },
+      {
+        "source": "tests",
+        "status": "present",
+        "category": "test_posture",
+        "freshness": "current",
+        "confidence": "medium",
+        "evidence": ["Vitest unit tests configured in package.json"]
+      }
+    ]
+  },
+  "claude": {
+    "cwd": "/repo",
+    "hook_event_name": "PostToolBatch",
+    "prompt": "Add saved project sharing and keep current project storage",
+    "recentRequests": ["Add saved projects", "Add project tags"],
+    "changed_files": [
+      "src/components/ProjectFilters.tsx",
+      "src/lib/projectStorage.ts",
+      "src/pages/ProjectEditor.tsx"
+    ],
+    "repoSignals": {
+      "status": "present",
+      "evidence": ["React app with src/pages, src/components, and src/lib entrypoints"]
+    },
+    "testSummary": {
+      "status": "not_run",
+      "summary": "Tests were not run after this change"
+    },
+    "memoryRefs": [],
+    "priorDecisions": [],
+    "optionalSignals": []
+  },
+  "genericCi": {
+    "cwd": "/repo",
+    "event": "ci-check",
+    "userRequest": "Add saved project sharing and keep current project storage",
+    "recentRequests": ["Add saved projects", "Add project tags"],
+    "changedFiles": [
+      "src/components/ProjectFilters.tsx",
+      "src/lib/projectStorage.ts",
+      "src/pages/ProjectEditor.tsx"
+    ],
+    "repoSignals": {
+      "status": "present",
+      "evidence": ["React app with src/pages, src/components, and src/lib entrypoints"]
+    },
+    "testSummary": {
+      "status": "not_run",
+      "summary": "Tests were not run after this change"
+    },
+    "memoryRefs": [],
+    "priorDecisions": [],
+    "optionalSignals": []
+  }
+}

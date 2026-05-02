@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ceetrix.ai/tech-lead/assessment.schema.json",
+  "title": "Ceetrix Tech Lead Portable Assessment Input",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "event": { "$ref": "#/$defs/coachEventEnvelope" },
+    "telemetry": { "type": "object" },
+    "answers": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/baselineAnswer" }
+    }
+  },
+  "$defs": {
+    "coachEventEnvelope": {
+      "type": "object",
+      "required": ["host", "event", "cwd"],
+      "additionalProperties": true,
+      "properties": {
+        "host": { "type": "string", "minLength": 1 },
+        "event": { "type": "string", "minLength": 1 },
+        "cwd": { "type": "string", "minLength": 1 },
+        "userRequest": { "type": "string" },
+        "recentRequests": { "type": "array", "items": { "type": "string" } },
+        "changedFiles": { "type": "array", "items": { "type": "string" } },
+        "repoSignals": { "type": "object" },
+        "testSummary": { "type": "object" },
+        "memoryRefs": { "type": "array", "items": { "type": "string" } },
+        "priorDecisions": { "type": "array", "items": { "type": "object" } },
+        "optionalSignals": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "baselineAnswer": {
+      "type": "object",
+      "required": ["questionId", "action"],
+      "additionalProperties": false,
+      "properties": {
+        "questionId": { "type": "string", "minLength": 1 },
+        "action": {
+          "type": "string",
+          "enum": ["confirm", "correct", "mark_temporary", "skip"]
+        },
+        "value": { "type": "string" },
+        "note": { "type": "string" },
+        "answerId": { "type": "string" },
+        "recordedAt": { "type": "string" }
+      }
+    }
+  }
+}
