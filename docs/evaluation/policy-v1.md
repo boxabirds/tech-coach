@@ -1,6 +1,6 @@
 # Policy v1 Evaluation
 
-Story 28 validates that Ceetrix Tech Lead moves from generic advice to explicit, right-sized architecture actions.
+Story 28 validates that Ceetrix Tech Lead moves from generic advice to explicit, right-sized architecture actions. Story 31 extends this with [timely advice evaluation](./timely-advice.md) across fixtures, host contracts, agent behavior, multi-turn journeys, and brownfield repositories.
 
 ## Coverage Model
 
@@ -8,7 +8,7 @@ Story 28 validates that Ceetrix Tech Lead moves from generic advice to explicit,
 - Scenario fixtures cover single-turn host-facing guidance for quiet first work, repeated state ownership, local persistence, revisit-triggered substrate replacement, auth review, deployment, blast radius, public API contracts, operational evidence, and overengineering controls.
 - Journey fixtures cover multi-turn timing: staying quiet early, recommending extraction only after repeated state pressure, inserting a repository boundary before substrate replacement, requiring decisions when prior assumptions expire, and preserving host-collected interview answers.
 - Claude lifecycle E2E covers SessionStart, UserPromptSubmit, PostToolBatch, and Stop hook behavior with persisted audit records.
-- `scripts/e2e-claude-brownfield.sh` covers the installed Claude plugin against representative brownfield repositories and rejects old ambiguous menu behavior, token overflow, missing persistence artifacts, and coarse generic questions.
+- `scripts/e2e-claude-brownfield.sh` covers the installed Claude plugin against representative brownfield repositories and rejects ambiguous mode-menu behavior, token overflow, missing persistence artifacts, and coarse generic questions.
 
 ## Expected Policy Behaviors
 

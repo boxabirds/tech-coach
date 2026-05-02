@@ -30,10 +30,35 @@ describe("architecture claims", () => {
         expect.objectContaining({
           concern: "authentication",
           confidence: "high",
-          claim: expect.stringContaining("external OAuth provider"),
+          claim: "Web users authenticate through an external OAuth provider with server-side session state.",
+          evidence: expect.arrayContaining([
+            "workers/taskmgr/src/auth/web-sessions.ts",
+          ]),
         }),
       ]),
     );
+  });
+
+  it("keeps every required evidence family represented when one family has many candidates", () => {
+    const telemetry = telemetryFromEvidence({
+      event: eventWithEvidence([
+        "authentication.route: authentication route: apps/web/src/pages/SignIn.tsx, workers/admin/src/frontend/pages/Login.tsx, workers/taskmgr/src/auth/config.ts",
+        "authentication.external_provider: external identity provider: workers/taskmgr/src/auth/github-access.ts, workers/taskmgr/src/auth/github-jwt.ts, workers/taskmgr/src/auth/github-urls.ts, workers/taskmgr/src/auth/web-oauth.ts, workers/taskmgr/src/notifications/github-auth-alert.ts, workers/taskmgr/src/auth/github-access.test.ts, workers/taskmgr/src/auth/github-jwt.test.ts, workers/taskmgr/src/auth/web-oauth.test.ts",
+        "authentication.session: server-side session: workers/taskmgr/src/auth/web-sessions.ts, workers/taskmgr/src/mcp/session.ts",
+      ]),
+    });
+
+    const webClaim = inferArchitectureClaims(buildArchitectureEvidenceGraph(telemetry))
+      .find((claim) => claim.subject === "web user authentication");
+
+    expect(webClaim).toMatchObject({
+      claim: "Web users authenticate through an external OAuth provider with server-side session state.",
+      evidence: expect.arrayContaining([
+        "apps/web/src/pages/SignIn.tsx",
+        "workers/taskmgr/src/auth/web-oauth.ts",
+        "workers/taskmgr/src/auth/web-sessions.ts",
+      ]),
+    });
   });
 
   it("does not promote single weak keyword evidence to a concrete claim", () => {

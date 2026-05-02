@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import type { ArchitectureConcern, BaselineConfidence } from "../../kernel/src/baselineTypes.js";
 import type { ArchitectureEvidenceFact, ArchitectureFactKind, ClaimEvidenceFamily } from "../../kernel/src/claimTypes.js";
 import type { OptionalSignalProvider, OptionalSignalResult, SignalContext } from "./index.js";
+import { isIgnoredProjectPath } from "./inventory.js";
 import {
   codeIntelligenceSchemaVersion,
   type CodeDependency,
@@ -140,7 +141,8 @@ export function codeIntelligenceReportToEvidence(
     ].filter((item): item is string => typeof item === "string"),
   }];
 
-  const relevantDependencies = selectRelevantDependencies(report.dependencies, context.changedFiles);
+  const relevantDependencies = selectRelevantDependencies(report.dependencies, context.changedFiles)
+    .filter((dependency) => !isIgnoredProjectPath(dependency.source));
   if (relevantDependencies.length > 0) {
     const facts = relevantDependencies.slice(0, 60).map((dependency) =>
       makeCodeFact({
@@ -166,7 +168,8 @@ export function codeIntelligenceReportToEvidence(
     });
   }
 
-  const relevantSymbols = selectRelevantSymbols(report.symbols, context.changedFiles);
+  const relevantSymbols = selectRelevantSymbols(report.symbols, context.changedFiles)
+    .filter((symbol) => !isIgnoredProjectPath(symbol.location.file));
   if (relevantSymbols.length > 0) {
     const facts = relevantSymbols.slice(0, 60).map((symbol) =>
       makeCodeFact({
@@ -353,6 +356,7 @@ function selectRelevantSymbols(symbols: CodeSymbol[], changedFiles: string[]): C
 
 function diagnosticsFromReport(report: CodeIntelligenceReport): CodeIntelligenceDiagnostic[] {
   const fileDiagnostics = report.files
+    .filter((file) => !isIgnoredProjectPath(file.path))
     .filter((file) => file.error || file.skipped || !file.parsed)
     .map((file): CodeIntelligenceDiagnostic => ({
       severity: file.error ? "warning" : "info",
@@ -360,7 +364,12 @@ function diagnosticsFromReport(report: CodeIntelligenceReport): CodeIntelligence
       file: file.path,
       languageId: file.languageId,
     }));
-  return [...(report.diagnostics ?? []), ...fileDiagnostics];
+  return [
+    ...(report.diagnostics ?? []).filter((diagnostic) =>
+      !diagnostic.file || !isIgnoredProjectPath(diagnostic.file)
+    ),
+    ...fileDiagnostics,
+  ];
 }
 
 function diagnosticsForMissingVariants(

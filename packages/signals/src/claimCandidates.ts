@@ -1,10 +1,19 @@
+import type { ArchitectureConcern, BaselineConfidence } from "../../kernel/src/baselineTypes.js";
+import type {
+  ArchitectureEvidenceFact,
+  ArchitectureFactKind,
+  ClaimEvidenceFamily,
+} from "../../kernel/src/claimTypes.js";
 import type { OptionalSignalProvider, OptionalSignalResult, SignalContext } from "./index.js";
 
 type CandidateRule = {
-  family: string;
-  concern: string;
+  family: ClaimEvidenceFamily;
+  concern: ArchitectureConcern;
   label: string;
   patterns: RegExp[];
+  factKind?: ArchitectureFactKind;
+  factLabel?: string;
+  factSummary?: string;
 };
 
 const generatedPathPatterns = [
@@ -41,36 +50,54 @@ const candidateRules: CandidateRule[] = [
     concern: "authentication",
     label: "external identity provider",
     patterns: [/oauth/i, /github.*auth/i, /auth.*github/i, /github-(urls|jwt|access)/i],
+    factKind: "auth.github_oauth",
+    factLabel: "GitHub OAuth code path",
+    factSummary: "Repository path indicates GitHub OAuth authentication code.",
   },
   {
     family: "session",
     concern: "authentication",
     label: "server-side session",
     patterns: [/sessions?\.[cm]?[jt]s$/i, /SESSION_KV/i, /(^|[-_/])sessions?[-_.]/i],
+    factKind: "auth.session",
+    factLabel: "server-side session code path",
+    factSummary: "Repository path indicates server-side session handling.",
   },
   {
     family: "credential",
     concern: "authentication",
     label: "API key or token authentication",
     patterns: [/api[-_]?keys?/i, /tokens?/i, /credentials?/i, /bearer/i],
+    factKind: "auth.credential",
+    factLabel: "programmatic credential code path",
+    factSummary: "Repository path indicates programmatic credential handling.",
   },
   {
     family: "session",
     concern: "authentication",
     label: "MCP session binding",
     patterns: [/mcp\/session\.[cm]?[jt]s$/i, /mcp.*session/i],
+    factKind: "auth.session",
+    factLabel: "MCP session code path",
+    factSummary: "Repository path indicates MCP session handling.",
   },
   {
     family: "authorization",
     concern: "authorization",
     label: "role or membership boundary",
     patterns: [/membership/i, /permissions?/i, /roles?/i, /rbac/i, /access[-_]?control/i],
+    factKind: "authz.membership_role",
+    factLabel: "membership or role authorization code path",
+    factSummary: "Repository path indicates membership, role, or permission authorization.",
   },
   {
     family: "schema",
     concern: "data_storage",
     label: "relational schema or migration",
     patterns: [/migrations\/.+\.sql$/i, /\.sql$/i, /schema/i],
+    factKind: "storage.schema",
+    factLabel: "relational schema or migration",
+    factSummary: "Repository path indicates relational schema or migration storage.",
   },
   {
     family: "binding",
@@ -89,18 +116,27 @@ const candidateRules: CandidateRule[] = [
     concern: "package_boundary",
     label: "package or workspace boundary",
     patterns: [/^apps\//i, /^packages\//i, /^workers\//i, /Package\.swift$/i, /^crates\/[^/]+\/Cargo\.toml$/i],
+    factKind: "package.workspace",
+    factLabel: "package or workspace boundary",
+    factSummary: "Repository path indicates a package or workspace boundary.",
   },
   {
     family: "runtime_boundary",
     concern: "package_boundary",
     label: "React to Rust or native runtime boundary",
     patterns: [/^src\/.+\.tsx$/i, /^crates\/[^/]+\/src\/.+\.rs$/i, /wasm/i],
+    factKind: "runtime.boundary",
+    factLabel: "runtime boundary",
+    factSummary: "Repository path indicates a runtime boundary.",
   },
   {
     family: "test_surface",
     concern: "testing",
     label: "test surface",
     patterns: [/\/(__tests__|tests?|e2e)\//i, /\.(test|spec)\.[cm]?[jt]sx?$/i, /_test\.swift$/i],
+    factKind: "test.surface",
+    factLabel: "test surface",
+    factSummary: "Repository path indicates a test surface.",
   },
   {
     family: "deployment_config",
@@ -113,6 +149,9 @@ const candidateRules: CandidateRule[] = [
     concern: "observability",
     label: "runtime feedback or operational signal",
     patterns: [/health/i, /analytics/i, /logging?/i, /metrics?/i, /notifications?/i],
+    factKind: "observability.signal",
+    factLabel: "runtime feedback or operational signal",
+    factSummary: "Repository path indicates runtime feedback or operational signal handling.",
   },
 ];
 
@@ -122,6 +161,7 @@ export const claimCandidateProvider: OptionalSignalProvider = {
     const files = Array.from(new Set(context.knownFiles ?? context.changedFiles))
       .filter((file) => !isGeneratedPath(file));
     const evidence = collectEvidence(files);
+    const facts = collectFacts(files);
 
     if (evidence.length === 0) {
       return {
@@ -142,6 +182,7 @@ export const claimCandidateProvider: OptionalSignalProvider = {
       freshness: "current",
       confidence: evidence.length >= 4 ? "high" : "medium",
       evidence,
+      facts,
     };
   },
 };
@@ -161,6 +202,34 @@ function collectEvidence(files: string[]): string[] {
     );
   }
   return evidence;
+}
+
+function collectFacts(files: string[]): ArchitectureEvidenceFact[] {
+  const facts: ArchitectureEvidenceFact[] = [];
+  for (const rule of candidateRules) {
+    if (!rule.factKind) {
+      continue;
+    }
+    const matches = files
+      .filter((file) => rule.patterns.some((pattern) => pattern.test(file)))
+      .sort(compareEvidencePaths)
+      .slice(0, 12);
+    for (const path of matches) {
+      facts.push({
+        id: stableFactId(rule.factKind, path),
+        concern: rule.concern,
+        family: rule.family,
+        kind: rule.factKind,
+        label: rule.factLabel ?? rule.label,
+        summary: `${rule.factSummary ?? rule.label} ${path}`,
+        source: "claim-candidates",
+        confidence: confidenceForPath(path),
+        freshness: "current",
+        provenance: [{ path }],
+      });
+    }
+  }
+  return dedupeFacts(facts);
 }
 
 function compareEvidencePaths(left: string, right: string): number {
@@ -183,4 +252,29 @@ function pathRank(path: string): number {
 
 function isGeneratedPath(file: string): boolean {
   return generatedPathPatterns.some((pattern) => pattern.test(file));
+}
+
+function confidenceForPath(path: string): BaselineConfidence {
+  if (/(\.test\.|\/tests?\/|\/e2e\/)/.test(path)) {
+    return "medium";
+  }
+  if (/^docs\//.test(path) || /^pocs\//.test(path)) {
+    return "low";
+  }
+  return "high";
+}
+
+function dedupeFacts(facts: ArchitectureEvidenceFact[]): ArchitectureEvidenceFact[] {
+  const seen = new Set<string>();
+  return facts.filter((fact) => {
+    if (seen.has(fact.id)) {
+      return false;
+    }
+    seen.add(fact.id);
+    return true;
+  });
+}
+
+function stableFactId(kind: string, path: string): string {
+  return `${kind}:${path}`.replace(/[^a-zA-Z0-9:_./-]+/g, "-");
 }

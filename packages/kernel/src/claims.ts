@@ -129,7 +129,7 @@ export function inferArchitectureClaims(
     const optional = (rule.optionalFamilies ?? []).flatMap((family) =>
       nodes.filter((node) => node.family === family)
     );
-    const evidenceNodes = dedupeNodes([...required, ...optional]).slice(0, 12);
+    const evidenceNodes = selectEvidenceNodes(rule, [...required, ...optional]);
     const confidence = confidenceForClaim(rule, evidenceNodes);
     claims.push({
       id: stableId("claim", rule.concern, rule.subject),
@@ -138,12 +138,54 @@ export function inferArchitectureClaims(
       claim: specializeClaim(rule, evidenceNodes),
       confidence,
       evidenceNodeIds: evidenceNodes.map((node) => node.id),
-      evidence: evidenceNodes.flatMap((node) => node.citations).slice(0, 10),
+      evidence: selectClaimCitations(evidenceNodes),
       counterEvidence: [],
       residualUnknowns: rule.residualUnknowns ?? [],
     });
   }
   return dedupeClaims(claims);
+}
+
+function selectClaimCitations(nodes: ArchitectureEvidenceNode[], limit = 10): string[] {
+  const selected: string[] = [];
+  for (const node of nodes) {
+    const citation = node.citations.find((item) => item.trim().length > 0);
+    if (citation && !selected.includes(citation)) {
+      selected.push(citation);
+    }
+  }
+  for (const citation of nodes.flatMap((node) => node.citations)) {
+    if (selected.length >= limit) {
+      break;
+    }
+    if (!selected.includes(citation)) {
+      selected.push(citation);
+    }
+  }
+  return selected.slice(0, limit);
+}
+
+function selectEvidenceNodes(
+  rule: ClaimRule,
+  candidates: ArchitectureEvidenceNode[],
+): ArchitectureEvidenceNode[] {
+  const deduped = dedupeNodes(candidates);
+  const selected: ArchitectureEvidenceNode[] = [];
+  for (const family of [...rule.requiredFamilies, ...(rule.optionalFamilies ?? [])]) {
+    const familyNode = deduped.find((node) => node.family === family);
+    if (familyNode) {
+      selected.push(familyNode);
+    }
+  }
+  for (const node of deduped) {
+    if (selected.length >= 12) {
+      break;
+    }
+    if (!selected.some((existing) => existing.id === node.id)) {
+      selected.push(node);
+    }
+  }
+  return selected;
 }
 
 export function claimsForTelemetry(
@@ -286,6 +328,9 @@ function confidenceForClaim(
 
 function specializeClaim(rule: ClaimRule, nodes: ArchitectureEvidenceNode[]): string {
   const text = nodes.flatMap((node) => node.citations).join(" ").toLowerCase();
+  if (rule.concern === "authentication" && rule.subject === "programmatic authentication") {
+    return "Programmatic access uses credentials and server-side session state.";
+  }
   if (rule.concern === "authentication" && text.includes("github")) {
     if (text.includes("session")) {
       return "Web users authenticate through an external OAuth provider with server-side session state.";

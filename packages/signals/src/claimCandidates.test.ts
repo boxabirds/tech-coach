@@ -42,6 +42,25 @@ describe("claimCandidateProvider", () => {
         expect.stringContaining("deployment.deployment_config"),
       ]),
     );
+    expect(result.facts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          concern: "authentication",
+          kind: "auth.github_oauth",
+          provenance: [{ path: "workers/taskmgr/src/auth/web-oauth.ts" }],
+        }),
+        expect.objectContaining({
+          concern: "authentication",
+          kind: "auth.credential",
+          provenance: [{ path: "workers/taskmgr/src/auth/token-utils.ts" }],
+        }),
+        expect.objectContaining({
+          concern: "authorization",
+          kind: "authz.membership_role",
+          provenance: [{ path: "workers/taskmgr/src/auth/membership.ts" }],
+        }),
+      ]),
+    );
   });
 
   it("keeps authorization evidence concrete enough to ground interview questions", () => {
@@ -76,5 +95,6 @@ describe("claimCandidateProvider", () => {
     expect(result.evidence.join("\n")).toContain("package_boundary.package_boundary");
     expect(result.evidence.join("\n")).not.toContain("chrome_profile");
     expect(result.evidence.join("\n")).not.toContain("Code Cache");
+    expect(JSON.stringify(result.facts)).not.toContain("chrome_profile");
   });
 });

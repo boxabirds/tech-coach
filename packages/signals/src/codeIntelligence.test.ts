@@ -63,6 +63,11 @@ const report: CodeIntelligenceReport = {
       message: "unsupported language variant: mdx",
       languageId: "mdx",
     },
+    {
+      severity: "warning",
+      message: "generated browser cache complexity spike",
+      file: "docs/marketing/ops/data/verify-claims/chrome_profile/WasmTtsEngine/bindings_main.js",
+    },
   ],
 };
 
@@ -101,6 +106,10 @@ describe("code intelligence adapter", () => {
           ]),
         }),
       ]),
+    );
+    const diagnostics = evidence.find((item) => item.category === "diagnostic");
+    expect(diagnostics?.evidence).not.toEqual(
+      expect.arrayContaining([expect.stringContaining("chrome_profile")]),
     );
   });
 
