@@ -39,6 +39,12 @@ export function selectStructuralPatterns(
   if (concern.concern === "package_boundary") {
     patterns.push(packageBoundaryTestPattern(concern, principles, evidence, text));
   }
+  if (concern.concern === "authentication" || concern.concern === "authorization") {
+    patterns.push(securityReviewPattern(concern, principles, evidence));
+  }
+  if (concern.concern === "deployment" || concern.concern === "observability") {
+    patterns.push(operationalReadinessPattern(concern, principles, evidence));
+  }
   if (
     concern.concern === "testing"
     || principles.some((principle) => principle.id === "testability")
@@ -96,6 +102,22 @@ export function describeBoundaryContract(input: {
         dependents: "Future changes depend on the harness to detect contract breakage.",
         exclusions: "Do not add a broad end-to-end suite when a smaller boundary test is sufficient.",
         tests: "Exercise the smallest boundary that proves the load-bearing behavior.",
+        ...(provisional ? { provisional } : {}),
+      };
+    case "run_security_review":
+      return {
+        owner: "A named security review owns identity, authorization, and failure-mode assumptions.",
+        dependents: "Feature work depends on reviewed access and session behavior before relying on it.",
+        exclusions: "Do not add a new identity provider or role system until the current access boundary is understood.",
+        tests: "Verify authentication, authorization, expiry, denial, and privilege-boundary behavior.",
+        ...(provisional ? { provisional } : {}),
+      };
+    case "operationalize_runtime":
+      return {
+        owner: "The deployment or runtime boundary owns release, rollback, health, and visibility behavior.",
+        dependents: "Users and operators depend on predictable production access and diagnosis.",
+        exclusions: "Do not add heavyweight platform machinery until production or shared-use pressure is concrete.",
+        tests: "Verify deployment, configuration, health check, logging, and rollback-facing behavior.",
         ...(provisional ? { provisional } : {}),
       };
     case "continue_locally":
@@ -209,6 +231,40 @@ function packageBoundaryTestPattern(
     doNotAddYet: "Do not split packages further or introduce a service boundary until the existing runtime/package contract is named and tested.",
     evidence,
     missingEvidence: hasRuntimeBoundary ? [] : ["specific runtime or package contract evidence"],
+    confidence: patternConfidence(concern, evidence),
+  });
+}
+
+function securityReviewPattern(
+  concern: BaselineConcernAssessment,
+  principles: ArchitecturePrinciple[],
+  evidence: BaselineFact[],
+): StructuralPatternRecommendation {
+  return pattern({
+    pattern: "run_security_review",
+    concern: concern.concern,
+    principles,
+    addNow: "Run a focused security review of the identity, authorization, and session boundary before depending on it.",
+    doNotAddYet: "Do not introduce a new auth framework or role model until the current boundary and residual risk are named.",
+    evidence,
+    missingEvidence: evidence.length > 0 ? [] : ["concrete identity or access-control evidence"],
+    confidence: patternConfidence(concern, evidence),
+  });
+}
+
+function operationalReadinessPattern(
+  concern: BaselineConcernAssessment,
+  principles: ArchitecturePrinciple[],
+  evidence: BaselineFact[],
+): StructuralPatternRecommendation {
+  return pattern({
+    pattern: "operationalize_runtime",
+    concern: concern.concern,
+    principles,
+    addNow: "Add the smallest operational contract for release, health, logs, and rollback-facing behavior.",
+    doNotAddYet: "Do not add heavyweight platform, monitoring, or deployment machinery until production/shared-use pressure is concrete.",
+    evidence,
+    missingEvidence: evidence.length > 0 ? [] : ["deployment or runtime responsibility evidence"],
     confidence: patternConfidence(concern, evidence),
   });
 }

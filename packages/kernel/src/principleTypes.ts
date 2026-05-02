@@ -29,6 +29,8 @@ export type StructuralPatternId =
   | "insert_repository_boundary"
   | "record_api_contract"
   | "add_targeted_test_harness"
+  | "run_security_review"
+  | "operationalize_runtime"
   | "continue_locally";
 
 export type StructuralPatternRecommendation = {

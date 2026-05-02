@@ -33,7 +33,10 @@ describe("journey timing runner", () => {
 
     expect(result.passed).toBe(true);
     expect(result.turns.map((turn) => turn.memoryDecisionCount)).toEqual([1, 1]);
-    expect(result.turns[1]?.assessment?.action).toBe("Replace substrate");
+    expect(result.turns[1]?.assessment).toMatchObject({
+      intervention: "decision-required",
+      action: "Replace substrate",
+    });
   });
 
   it("applies host-collected answers through the shared baseline merger", () => {

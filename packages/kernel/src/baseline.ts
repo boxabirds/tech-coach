@@ -280,9 +280,11 @@ function classifyEvidence(
   }
 
   if (containsAny(text, ["usestate", "url serialization", "filter state", "shared state", "store"])) {
-    add("state_ownership", "State ownership pressure is visible", [
-      "state_ownership",
-    ], {
+    const thresholds: ThresholdCandidate[] = ["state_ownership"];
+    if (repeatedRequestPressure(event) || containsAny(text, ["repeat", "duplicate", "duplicated", "repeated"])) {
+      thresholds.push("repetition");
+    }
+    add("state_ownership", "State ownership pressure is visible", thresholds, {
       complexity: "medium",
       irreversibility: "medium",
       solutionVisibility: "medium",
@@ -291,9 +293,11 @@ function classifyEvidence(
   }
 
   if (containsAny(text, ["localstorage", "indexeddb", "sqlite", "postgres", "database", "repository", "storage"])) {
-    add("data_storage", "Persistence or storage behavior is visible", [
-      "persistence",
-    ], {
+    const thresholds: ThresholdCandidate[] = ["persistence"];
+    if (containsAny(text, ["share", "sharing", "sync", "team", "multi-user", "collaboration", "collaborative"])) {
+      thresholds.push("collaboration");
+    }
+    add("data_storage", "Persistence or storage behavior is visible", thresholds, {
       complexity: "medium",
       irreversibility: containsAny(text, ["migration", "production", "user data"])
         ? "high"

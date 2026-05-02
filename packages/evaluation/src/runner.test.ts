@@ -41,7 +41,7 @@ describe("scenario evidence runner", () => {
       mismatches: [],
       assessment: {
         intervention: "recommend",
-        action: "Record decision",
+        action: "Insert boundary",
       },
     });
   });

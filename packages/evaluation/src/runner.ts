@@ -238,6 +238,8 @@ const interventionLevels = new Set([
   "silent",
   "note",
   "recommend",
+  "interview-required",
+  "decision-required",
   "block",
 ]);
 

@@ -46,7 +46,7 @@ describe("architecture MCP tool contracts", () => {
     const guidance = result.ok ? result.result as AssessmentToolResult : undefined;
     expect(guidance?.assessment).toMatchObject({
       status: "needs_attention",
-      action: "Record decision",
+      action: "Insert boundary",
     });
     expect(guidance?.assessment.evidence).toEqual(
       expect.arrayContaining([
@@ -257,7 +257,7 @@ describe("architecture MCP tool contracts", () => {
 
     expect(horizon.ok).toBe(true);
     expect(horizon.ok ? horizon.result : undefined).toMatchObject({
-      action: "Record decision",
+      action: "Run review",
     });
     expect(review.ok).toBe(true);
     expect(review.ok ? review.result : undefined).toMatchObject({

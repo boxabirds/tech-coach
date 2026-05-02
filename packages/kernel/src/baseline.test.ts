@@ -107,7 +107,7 @@ describe("synthesizeArchitectureBaseline", () => {
     expect(persistence).toMatchObject({
       currentState: "Exploratory",
       confidence: "low",
-      thresholdCandidates: ["persistence"],
+      thresholdCandidates: expect.arrayContaining(["persistence", "collaboration"]),
     });
     expect(persistence?.facts[0]).toMatchObject({
       status: "inferred",

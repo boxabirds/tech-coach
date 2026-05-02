@@ -29,6 +29,10 @@ import {
   selectStructuralPatterns,
 } from "./patterns.js";
 import type { PrincipleGuidance } from "./principleTypes.js";
+import {
+  selectArchitecturePolicy,
+  type ArchitecturePolicyDecision,
+} from "./policy.js";
 import type {
   ArchitecturalTelemetryBundle,
   SignalEnvelope,
@@ -58,6 +62,7 @@ export type AssessmentResult = {
   claims?: ArchitectureClaim[];
   revisitAlerts: RevisitAlert[];
   principleGuidance: PrincipleGuidance[];
+  policy?: ArchitecturePolicyDecision;
 };
 
 export type AssessmentInput = {
@@ -117,17 +122,22 @@ export function assessArchitecture(input: AssessmentInput): AssessmentResult {
     telemetry: normalized.telemetry,
   });
   const principleGuidance = buildPrincipleGuidance(baseline);
+  const policy = selectArchitecturePolicy({
+    baseline,
+    questions,
+    revisitAlerts,
+    principleGuidance,
+  });
 
-  const recommendation = chooseRecommendation(baseline, questions, revisitAlerts);
   return {
-    status: recommendation.intervention === "silent" || recommendation.action === "Continue"
+    status: policy.selected.intervention === "silent" || policy.selected.action === "Continue"
       ? "ok"
       : "needs_attention",
-    intervention: recommendation.intervention,
-    action: recommendation.action,
-    reason: recommendation.reason,
+    intervention: policy.selected.intervention,
+    action: policy.selected.action,
+    reason: policy.selected.reason,
     evidence: buildEvidence(normalized.telemetry, baseline, revisitAlerts),
-    doNotAdd: doNotAddGuidance(baseline, recommendation.action),
+    doNotAdd: doNotAddGuidance(baseline, policy.selected),
     memory: {
       status: normalized.memoryRecords.length > 0 ? "loaded" : "absent",
       decisionCount: normalized.memoryRecords.length,
@@ -137,6 +147,7 @@ export function assessArchitecture(input: AssessmentInput): AssessmentResult {
     claims,
     revisitAlerts,
     principleGuidance,
+    policy,
   };
 }
 
@@ -187,107 +198,6 @@ export function normalizeAssessmentInput(
   };
 }
 
-function chooseRecommendation(
-  baseline: ArchitectureBaseline,
-  questions: BaselineQuestion[],
-  alerts: RevisitAlert[],
-): {
-  intervention: InterventionLevel;
-  action: CoachAction;
-  reason: string;
-} {
-  if (alerts.length > 0) {
-    const alert = alerts[0];
-    return {
-      intervention: "recommend",
-      action: alert.recommendedAction,
-      reason: `Prior decision ${alert.decisionId} matched revisit condition "${alert.matchedCondition}".`,
-    };
-  }
-
-  const packageBoundary = baseline.concerns.find(
-    (concern) =>
-      concern.concern === "package_boundary"
-      && concern.facts.length > 0
-      && concern.confidence !== "low",
-  );
-  if (packageBoundary) {
-    return {
-      intervention: "recommend",
-      action: "Add test harness",
-      reason: "Repository shape shows a runtime or package boundary that can be protected locally while open assumptions remain visible.",
-    };
-  }
-
-  if (questions.length > 0) {
-    return {
-      intervention: "recommend",
-      action: "Record decision",
-      reason: `Baseline has ${questions.length} high-impact unconfirmed assumption${questions.length === 1 ? "" : "s"}.`,
-    };
-  }
-
-  const risk = baseline.concerns.find(
-    (concern) =>
-      concern.concern === "risk_hotspot"
-      && concern.thresholdCandidates.includes("blast_radius"),
-  );
-  if (risk) {
-    return {
-      intervention: "recommend",
-      action: "Run review",
-      reason: "Current evidence shows broad change or risk hotspot pressure.",
-    };
-  }
-
-  const loadBearing = baseline.concerns.find(
-    (concern) =>
-      concern.currentState === "LoadBearing" || concern.currentState === "Revisit",
-  );
-  if (loadBearing) {
-    return {
-      intervention: "recommend",
-      action: actionForConcern(loadBearing.concern),
-      reason: `${loadBearing.concern} appears ${loadBearing.currentState}.`,
-    };
-  }
-
-  if (baseline.facts.length === 0) {
-    return {
-      intervention: "note",
-      action: "Continue",
-      reason: "No concrete architecture evidence or prior decisions were available.",
-    };
-  }
-
-  return {
-    intervention: "note",
-    action: "Continue",
-    reason: "Current evidence does not require adding structure yet.",
-  };
-}
-
-function actionForConcern(concern: ArchitectureConcern): CoachAction {
-  switch (concern) {
-    case "data_storage":
-      return "Replace substrate";
-    case "authentication":
-    case "authorization":
-      return "Run review";
-    case "state_ownership":
-      return "Assign ownership";
-    case "package_boundary":
-    case "api_contract":
-      return "Insert boundary";
-    case "testing":
-      return "Add test harness";
-    case "observability":
-      return "Operationalize";
-    default:
-      return "Record decision";
-  }
-}
-
 function buildPrincipleGuidance(
   baseline: ArchitectureBaseline,
 ): PrincipleGuidance[] {
@@ -323,12 +233,15 @@ function buildPrincipleGuidance(
 
 function doNotAddGuidance(
   baseline: ArchitectureBaseline,
-  action: CoachAction,
+  selected: ArchitecturePolicyDecision["selected"],
 ): string[] {
+  if (selected.doNotAdd.length > 0) {
+    return selected.doNotAdd;
+  }
   if (baseline.facts.length === 0) {
     return ["Do not add durable architecture structure until there is concrete project evidence."];
   }
-  if (action === "Continue") {
+  if (selected.action === "Continue") {
     return ["Do not introduce new boundaries, storage, auth, or deployment machinery without a matching threshold signal."];
   }
   return [];

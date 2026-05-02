@@ -49,7 +49,7 @@ describe("portable architecture guidance consistency", () => {
       expect(output.guidance).toMatchObject({
         status: "needs_attention",
         intervention: "recommend",
-        action: expect.stringMatching(/Record decision|Add test harness/),
+        action: expect.stringMatching(/Insert boundary|Add test harness/),
       });
       expect(output.guidance.evidence.length).toBeGreaterThan(0);
       expect(output.guidance.questions.length).toBeGreaterThan(0);

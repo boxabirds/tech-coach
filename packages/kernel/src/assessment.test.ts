@@ -23,8 +23,14 @@ describe("assessArchitecture", () => {
     expect(result).toMatchObject({
       status: "needs_attention",
       intervention: "recommend",
-      action: "Record decision",
+      action: "Insert boundary",
       memory: { status: "absent", decisionCount: 0 },
+    });
+    expect(result.policy?.selected).toMatchObject({
+      concern: "data_storage",
+      action: "Insert boundary",
+      patternId: "insert_repository_boundary",
+      principleIds: expect.arrayContaining(["stable_contract", "right_sized_abstraction"]),
     });
     expect(result.questions.length).toBeGreaterThan(0);
     expect(result.evidence).toEqual(
@@ -131,9 +137,14 @@ describe("assessArchitecture", () => {
 
     expect(result).toMatchObject({
       status: "needs_attention",
-      intervention: "recommend",
+      intervention: "decision-required",
       action: "Replace substrate",
       memory: { status: "loaded", decisionCount: 1 },
+    });
+    expect(result.policy?.selected).toMatchObject({
+      concern: "data_storage",
+      intervention: "decision-required",
+      thresholdCandidates: expect.arrayContaining(["revisit", "persistence"]),
     });
     expect(result.revisitAlerts).toEqual(
       expect.arrayContaining([

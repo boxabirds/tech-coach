@@ -10,7 +10,13 @@ export type MaturityState =
   | "Operational"
   | "Revisit";
 
-export type InterventionLevel = "silent" | "note" | "recommend" | "block";
+export type InterventionLevel =
+  | "silent"
+  | "note"
+  | "recommend"
+  | "interview-required"
+  | "decision-required"
+  | "block";
 
 export type CoachAction =
   | "Continue"

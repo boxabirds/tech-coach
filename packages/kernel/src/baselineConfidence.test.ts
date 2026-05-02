@@ -32,6 +32,12 @@ describe("baseline confidence helpers", () => {
     expect(combineFactConfidence([fact("low")])).toBe("low");
   });
 
+  it("lets normalized architecture claims carry concern confidence", () => {
+    expect(
+      combineFactConfidence([fact("high", "architecture_claim")]),
+    ).toBe("high");
+  });
+
   it("keeps unknown axis scores below concrete scores", () => {
     expect(maxAxisScore(["unknown", "low"])).toBe("low");
     expect(maxAxisScore(["medium", "high"])).toBe("high");
@@ -51,7 +57,10 @@ function source(
   };
 }
 
-function fact(confidence: BaselineFact["confidence"]): BaselineFact {
+function fact(
+  confidence: BaselineFact["confidence"],
+  category = "configuration_boundary",
+): BaselineFact {
   return {
     id: `fact-${confidence}`,
     concern: "data_storage",
@@ -59,7 +68,7 @@ function fact(confidence: BaselineFact["confidence"]): BaselineFact {
     status: "observed",
     confidence,
     freshness: "current",
-    sources: [source("configuration_boundary", confidence)],
+    sources: [source(category, confidence)],
     summary: "fact",
   };
 }

@@ -91,7 +91,7 @@ describe("runAssessmentCommand", () => {
 
     expect(output.result).toMatchObject({
       status: "needs_attention",
-      action: "Record decision",
+      action: "Insert boundary",
       memory: { status: "absent", decisionCount: 0 },
     });
     expect(renderAssessmentOutput(output, "json")).toContain("\"family\": \"repository\"");
@@ -105,7 +105,7 @@ describe("runAssessmentCommand", () => {
     );
     const text = renderAssessmentOutput(output, "text");
 
-    expect(text).toContain("Action: Record decision");
+    expect(text).toContain("Action: Insert boundary");
     expect(text).toContain("repository/layout:file_layout");
     expect(text).toContain("Evidence:");
   });
@@ -169,7 +169,7 @@ describe("runCli", () => {
 
     expect(result.exitCode).toBe(0);
     expect(stderr).toEqual([]);
-    expect(stdout.join("")).toContain("\"action\": \"Record decision\"");
+    expect(stdout.join("")).toContain("\"action\": \"Insert boundary\"");
   });
 
   it("returns actionable validation errors for invalid input", async () => {

@@ -57,7 +57,7 @@ export const prototypeToNamed: JourneyFixture = {
       ],
       expected: {
         expectedIntervention: "recommend",
-        expectedAction: "Record decision",
+        expectedAction: "Extract",
         expectedConcern: "state_ownership",
         expectedFromState: "Exploratory",
         expectedToState: "Exploratory",
@@ -89,7 +89,7 @@ export const localPersistenceToCollaboration: JourneyFixture = {
       ],
       expected: {
         expectedIntervention: "recommend",
-        expectedAction: "Record decision",
+        expectedAction: "Insert boundary",
         expectedConcern: "data_storage",
         expectedToState: "Revisit",
         expectedInterview: true,
@@ -113,7 +113,7 @@ export const localPersistenceToCollaboration: JourneyFixture = {
         ]),
       ],
       expected: {
-        expectedIntervention: "recommend",
+        expectedIntervention: "decision-required",
         expectedAction: "Replace substrate",
         expectedConcern: "data_storage",
         expectedFromState: "Revisit",
@@ -145,8 +145,8 @@ export const demoAuthToProduction: JourneyFixture = {
         ]),
       ],
       expected: {
-        expectedIntervention: "recommend",
-        expectedAction: "Record decision",
+        expectedIntervention: "interview-required",
+        expectedAction: "Run review",
         expectedConcern: "authentication",
         expectedToState: "Revisit",
         expectedInterview: true,
@@ -169,7 +169,7 @@ export const demoAuthToProduction: JourneyFixture = {
         ]),
       ],
       expected: {
-        expectedIntervention: "recommend",
+        expectedIntervention: "decision-required",
         expectedAction: "Run review",
         expectedConcern: "authentication",
         expectedFromState: "Revisit",
@@ -199,8 +199,8 @@ export const deploymentOperationalization: JourneyFixture = {
         ]),
       ],
       expected: {
-        expectedIntervention: "recommend",
-        expectedAction: "Record decision",
+        expectedIntervention: "interview-required",
+        expectedAction: "Operationalize",
         expectedConcern: "deployment",
         expectedToState: "Owned",
         expectedInterview: true,
@@ -225,7 +225,7 @@ export const deploymentOperationalization: JourneyFixture = {
       ],
       expected: {
         expectedIntervention: "recommend",
-        expectedAction: "Record decision",
+        expectedAction: "Operationalize",
         expectedConcern: "observability",
         expectedToState: "LoadBearing",
         expectedInterview: true,
@@ -261,8 +261,8 @@ export const interviewRequiredThenAnswered: JourneyFixture = {
         },
       ],
       expected: {
-        expectedIntervention: "recommend",
-        expectedAction: "Record decision",
+        expectedIntervention: "interview-required",
+        expectedAction: "Insert boundary",
         expectedConcern: "data_storage",
         expectedToState: "Named",
         expectedInterview: true,

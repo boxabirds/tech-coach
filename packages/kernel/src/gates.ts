@@ -41,6 +41,8 @@ export function evaluateUnsafeCompletionGate(input: StopGateInput): StopGateDeci
   const questions = input.unresolvedQuestions ?? unresolved.flatMap((item) => item.questions);
   const highRiskQuestions = questions.filter((question) => highRiskConcerns.has(question.concern));
   const blockAssessments = unresolved.filter((item) => item.intervention === "block");
+  const decisionAssessments = unresolved.filter((item) => item.intervention === "decision-required");
+  const interviewAssessments = unresolved.filter((item) => item.intervention === "interview-required");
   const recommendAssessments = unresolved.filter((item) => item.intervention === "recommend");
 
   if (input.mode === "advisory") {
@@ -63,16 +65,22 @@ export function evaluateUnsafeCompletionGate(input: StopGateInput): StopGateDeci
   }
 
   if (input.mode === "balanced") {
-    if (blockAssessments.length > 0 || highRiskQuestions.length > 0) {
-      const reason = blockAssessments[0]?.reason
+    if (blockAssessments.length > 0 || decisionAssessments.length > 0 || highRiskQuestions.length > 0) {
+      const reason = (blockAssessments[0] ?? decisionAssessments[0])?.reason
         ?? `Required clarification is unresolved: ${highRiskQuestions[0]?.prompt ?? "architecture question"}`;
       return blockDecision(input, unresolved, highRiskQuestions, reason);
     }
     return { outcome: "finish" };
   }
 
-  if (recommendAssessments.length > 0 || blockAssessments.length > 0 || questions.length > 0) {
-    const reason = (blockAssessments[0] ?? recommendAssessments[0])?.reason
+  if (
+    recommendAssessments.length > 0
+    || interviewAssessments.length > 0
+    || decisionAssessments.length > 0
+    || blockAssessments.length > 0
+    || questions.length > 0
+  ) {
+    const reason = (blockAssessments[0] ?? decisionAssessments[0] ?? interviewAssessments[0] ?? recommendAssessments[0])?.reason
       ?? `Required clarification is unresolved: ${questions[0]?.prompt ?? "architecture question"}`;
     return blockDecision(input, unresolved, questions, reason);
   }
@@ -105,6 +113,8 @@ function blockDecision(
 function actionableAssessments(items: AssessmentResult[]): AssessmentResult[] {
   return items.filter((item) =>
     item.intervention === "recommend"
+    || item.intervention === "interview-required"
+    || item.intervention === "decision-required"
     || item.intervention === "block"
     || item.questions.length > 0
     || item.revisitAlerts.length > 0

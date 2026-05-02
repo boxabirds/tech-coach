@@ -22,6 +22,7 @@ const axisRank: Record<AxisScore, number> = {
 const strongEvidenceCategories = new Set([
   "changed_file_spread",
   "architecture_shape",
+  "architecture_claim",
   "configuration_boundary",
   "diagnostic",
   "file_layout",
@@ -58,6 +59,14 @@ export function combineConfidence(
     return "high";
   }
 
+  if (
+    strongSources.some((source) => source.category === "architecture_claim")
+    && highConfidenceSources.length >= 1
+    && allCurrentOrUnknown(strongSources)
+  ) {
+    return "high";
+  }
+
   if (strongSources.length >= 1 || mediumOrBetter.length >= 2) {
     return "medium";
   }
@@ -78,6 +87,14 @@ export function combineFreshness(sources: EvidenceSourceRef[]): BaselineFreshnes
 export function combineFactConfidence(facts: BaselineFact[]): BaselineConfidence {
   if (facts.length === 0) {
     return "low";
+  }
+  if (
+    facts.some((fact) =>
+      fact.confidence === "high"
+      && fact.sources.some((source) => source.category === "architecture_claim")
+    )
+  ) {
+    return "high";
   }
   if (
     facts.some(

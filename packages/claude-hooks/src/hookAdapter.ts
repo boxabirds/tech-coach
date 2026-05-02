@@ -316,7 +316,17 @@ export function effectForAssessment(
   if (intervention === "block") {
     return "block";
   }
-  if (mode === "strict" && intervention === "recommend") {
+  if (mode === "balanced" && intervention === "decision-required") {
+    return "block";
+  }
+  if (
+    mode === "strict"
+    && (
+      intervention === "recommend"
+      || intervention === "interview-required"
+      || intervention === "decision-required"
+    )
+  ) {
     return "block";
   }
   return "inject";

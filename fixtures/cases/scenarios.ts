@@ -57,7 +57,7 @@ export const repeatedState: ScenarioFixture = withEvidence({
   expectation: {
     requiredThresholds: ["state_ownership"],
     allowedInterventions: ["recommend"],
-    expectedActions: ["Record decision"],
+    expectedActions: ["Extract"],
     forbiddenActions: ["Replace substrate"],
     requiredSignalFamilies: ["lifecycle", "change"],
     requiredEvidenceCategories: ["symbol_reference"],
@@ -83,8 +83,8 @@ export const persistence: ScenarioFixture = withEvidence({
   expectation: {
     requiredThresholds: ["persistence"],
     allowedInterventions: ["recommend"],
-    expectedActions: ["Record decision"],
-    forbiddenActions: ["Insert boundary"],
+    expectedActions: ["Insert boundary"],
+    forbiddenActions: ["Replace substrate"],
     requiredSignalFamilies: ["lifecycle", "repository", "test"],
     requiredEvidenceCategories: ["configuration_boundary", "test_posture"],
   },
@@ -107,7 +107,7 @@ export const expiredAssumption: ScenarioFixture = withEvidence({
   memory: [localStorageDecision],
   expectation: {
     requiredThresholds: ["persistence", "revisit"],
-    allowedInterventions: ["recommend"],
+    allowedInterventions: ["decision-required"],
     expectedActions: ["Replace substrate"],
     forbiddenActions: ["Continue"],
     requiredSignalFamilies: ["lifecycle", "repository", "memory"],
@@ -129,8 +129,8 @@ export const auth: ScenarioFixture = withEvidence({
   ],
   expectation: {
     requiredThresholds: ["identity", "security"],
-    allowedInterventions: ["recommend"],
-    expectedActions: ["Record decision"],
+    allowedInterventions: ["decision-required"],
+    expectedActions: ["Run review"],
     forbiddenActions: ["Continue"],
     requiredSignalFamilies: ["lifecycle", "repository"],
     requiredEvidenceCategories: ["configuration_boundary"],
@@ -152,8 +152,8 @@ export const deployment: ScenarioFixture = withEvidence({
   memory: [authShortcutDecision],
   expectation: {
     requiredThresholds: ["deployment"],
-    allowedInterventions: ["recommend"],
-    expectedActions: ["Record decision", "Run review"],
+    allowedInterventions: ["decision-required"],
+    expectedActions: ["Run review"],
     forbiddenActions: ["Continue"],
     requiredSignalFamilies: ["lifecycle", "repository", "memory"],
     requiredEvidenceCategories: ["configuration_boundary"],
@@ -180,7 +180,7 @@ export const broadDiff: ScenarioFixture = withEvidence({
   expectation: {
     requiredThresholds: ["blast_radius"],
     allowedInterventions: ["recommend"],
-    expectedActions: ["Record decision"],
+    expectedActions: ["Run review"],
     forbiddenActions: ["Continue"],
     requiredSignalFamilies: ["lifecycle", "repository", "change"],
     requiredEvidenceCategories: ["file_layout", "changed_file_spread"],
@@ -219,8 +219,8 @@ export const publicContract: ScenarioFixture = withEvidence({
   ],
   expectation: {
     requiredThresholds: ["public_api"],
-    allowedInterventions: ["recommend"],
-    expectedActions: ["Record decision"],
+    allowedInterventions: ["decision-required"],
+    expectedActions: ["Insert boundary"],
     forbiddenActions: ["Continue"],
     requiredSignalFamilies: ["lifecycle", "repository"],
     requiredEvidenceCategories: ["configuration_boundary"],
@@ -245,7 +245,7 @@ export const operationalEvidence: ScenarioFixture = withEvidence({
   expectation: {
     requiredThresholds: ["operational"],
     allowedInterventions: ["recommend"],
-    expectedActions: ["Record decision"],
+    expectedActions: ["Operationalize"],
     forbiddenActions: ["Continue"],
     requiredSignalFamilies: ["lifecycle", "runtime", "test"],
     requiredEvidenceCategories: ["runtime_error", "test_posture"],
