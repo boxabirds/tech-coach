@@ -114,14 +114,18 @@ describe("planBaselineInterviewQuestions", () => {
       ],
       counterEvidence: [],
       residualUnknowns: [
-        "Which access-control risk should the next test harness protect first.",
+        "Which future access-control change or risk should guide the next architecture review.",
       ],
     }];
 
-    const questions = planBaselineInterviewQuestions({ baseline, claims }, 6);
+    const questions = planBaselineInterviewQuestions({
+      baseline,
+      claims,
+      interactionContext: "risk_review",
+    }, 6);
     const prompts = questions.map((question) => question.prompt).join("\n");
 
-    expect(prompts).toContain("Which access-control risk should the next test harness protect first");
+    expect(prompts).toContain("Which future access-control change or risk should guide the next architecture review");
     expect(prompts).not.toContain("Should the coach assume no roles, admin-only controls, role-based access, or resource-level permissions?");
     expect(prompts).not.toContain("workers/taskmgr");
     expect(questions.find((question) => question.concern === "authorization")).toMatchObject({

@@ -1,0 +1,10 @@
+{
+  "workspaces": ["apps/*", "workers/*"],
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@cloudflare/workers-types": "latest",
+    "react": "latest"
+  }
+}

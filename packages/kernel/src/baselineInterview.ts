@@ -60,7 +60,7 @@ export function planBaselineInterviewQuestions(
   input: BaselineInterviewInput,
   limit = defaultQuestionLimit,
 ): BaselineQuestion[] {
-  if (limit <= 0 || isLowSignalGreenfield(input)) {
+  if (limit <= 0 || input.interactionContext === "passive_baseline" || isLowSignalGreenfield(input)) {
     return [];
   }
 

@@ -18,6 +18,14 @@ export type InterventionLevel =
   | "decision-required"
   | "block";
 
+export type ArchitectureInteractionContext =
+  | "passive_baseline"
+  | "requested_next_action"
+  | "pending_change_assessment"
+  | "risk_review"
+  | "deployment_planning"
+  | "architecture_decision";
+
 export type CoachAction =
   | "Continue"
   | "Localize"
@@ -65,6 +73,7 @@ export type CoachEventEnvelope = {
   host: string;
   event: string;
   cwd: string;
+  interactionContext?: ArchitectureInteractionContext;
   userRequest?: string;
   recentRequests: string[];
   changedFiles: string[];

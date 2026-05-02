@@ -500,7 +500,7 @@ export function createAssessmentOrientation(result: CaptureAssessmentResult): As
   const hostGuidance = [
     "The host agent should explain, interview, and summarize in normal conversation.",
     "MCP tools provide deterministic capture, durable state, artifact indexes, and paged graph navigation.",
-    "Ask blocking questions directly; keep raw question ids and graph node ids as internal tool handles.",
+    "Ask immediate questions only when the assessment marks them as active for the current user intent; keep raw question ids and graph node ids as internal tool handles.",
     "Continue into the assessment after the orientation instead of presenting a menu of modes.",
   ];
 

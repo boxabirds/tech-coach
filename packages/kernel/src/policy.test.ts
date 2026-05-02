@@ -8,6 +8,7 @@ describe("explicit architecture policy", () => {
     const result = assessArchitecture({
       event: {
         ...baseEvent,
+        userRequest: "Refactor project editor state ownership.",
         optionalSignals: [
           signal("auth", "architecture_claim", "high", [
             "Authentication route uses OAuth sessions and account login.",
@@ -104,6 +105,7 @@ describe("explicit architecture policy", () => {
     const result = assessArchitecture({
       event: {
         ...baseEvent,
+        userRequest: "Refactor project editor state ownership.",
         optionalSignals: [
           signal("state-imports", "import_relationship", "high", [
             "ProjectEditor uses useState, useEffect, and URL serialization.",
@@ -158,6 +160,7 @@ describe("explicit architecture policy", () => {
     const deployment = assessArchitecture({
       event: {
         ...baseEvent,
+        userRequest: "Prepare deployment operations guidance.",
         optionalSignals: [
           signal("deploy", "configuration_boundary", "high", [
             "Cloudflare production deploy hosting logs health check runtime responsibility.",
@@ -168,6 +171,7 @@ describe("explicit architecture policy", () => {
     const security = assessArchitecture({
       event: {
         ...baseEvent,
+        userRequest: "Review identity and authorization security risk.",
         optionalSignals: [
           signal("auth", "architecture_claim", "high", [
             "OAuth session login with authorization role access control.",
@@ -194,6 +198,7 @@ describe("explicit architecture policy", () => {
     const result = assessArchitecture({
       event: {
         ...baseEvent,
+        userRequest: "Recommend the next storage architecture move.",
         optionalSignals: [
           signal("weak-storage", "symbol_reference", "low", [
             "Maybe localStorage or database later.",
@@ -208,5 +213,31 @@ describe("explicit architecture policy", () => {
       provisional: true,
     });
     expect(result.intervention).not.toBe("block");
+  });
+
+  it("keeps passive repository baselines observational even when boundaries are visible", () => {
+    const result = assessArchitecture({
+      event: {
+        ...baseEvent,
+        userRequest: "Capture a passive repository baseline.",
+        optionalSignals: [
+          signal("shape", "architecture_shape", "high", [
+            "Runtime boundary: React/TypeScript UI depends on Rust/WASM or native-module code.",
+          ]),
+          signal("auth", "architecture_claim", "high", [
+            "OAuth session login with authorization role access control.",
+          ]),
+        ],
+      },
+    });
+
+    expect(result.interactionContext).toBe("passive_baseline");
+    expect(result.policy?.selected).toMatchObject({
+      action: "Continue",
+      intervention: "note",
+      requiresQuestion: false,
+    });
+    expect(result.questions).toEqual([]);
+    expect(result.reason).toContain("no immediate architecture move is required");
   });
 });

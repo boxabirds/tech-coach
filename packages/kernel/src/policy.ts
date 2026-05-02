@@ -10,6 +10,7 @@ import type {
   ThresholdCandidate,
 } from "./baselineTypes.js";
 import type {
+  ArchitectureInteractionContext,
   CoachAction,
   InterventionLevel,
 } from "./protocol.js";
@@ -119,6 +120,7 @@ export function selectArchitecturePolicy(input: {
   questions: BaselineQuestion[];
   revisitAlerts: RevisitAlert[];
   principleGuidance: PrincipleGuidance[];
+  interactionContext?: ArchitectureInteractionContext;
 }): ArchitecturePolicyDecision {
   const concerns = input.baseline.concerns.map((concern): ConcernPolicyState => {
     const guidance = input.principleGuidance.find((item) => item.concern === concern.concern);
@@ -172,7 +174,20 @@ function selectPolicyAction(input: {
   questions: BaselineQuestion[];
   revisitAlerts: RevisitAlert[];
   principleGuidance: PrincipleGuidance[];
+  interactionContext?: ArchitectureInteractionContext;
 }): SelectedPolicyAction {
+  if (input.interactionContext === "passive_baseline") {
+    return selectedAction({
+      action: "Continue",
+      intervention: "note",
+      reason: input.baseline.facts.length > 0
+        ? "Repository baseline captured. Current evidence is recorded for future architecture decisions; no immediate architecture move is required from baseline evidence alone."
+        : "Repository baseline captured with no concrete architecture evidence yet. No durable structure is justified without project evidence.",
+      baseline: input.baseline,
+      doNotAdd: ["Do not turn observed repository shape into action until a requested change, risk review, or decision creates pressure."],
+    });
+  }
+
   if (input.revisitAlerts.length > 0) {
     const alert = input.revisitAlerts[0];
     const concern = concernForAlert(input.baseline, alert);

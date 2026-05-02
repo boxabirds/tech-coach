@@ -14,9 +14,6 @@ const baseline: BrownfieldClaimBaseline = {
     claimContains: ["Membership", "role"],
     evidenceContains: ["membership.ts", "0051_user_projects_role.sql"],
   }],
-  requiredResidualQuestions: [
-    "Which access-control risk should the next test harness protect first",
-  ],
   requiredFacts: [{
     concern: "authentication",
     kindContains: "auth.github_oauth",
@@ -45,7 +42,7 @@ describe("claimComparator", () => {
         id: "q-authz",
         concern: "authorization",
         kind: "choose",
-        prompt: "Which access-control risk should the next test harness protect first.",
+        prompt: "Which future access-control change or risk should guide the next architecture review.",
         reason: "residual",
         relatedFactIds: [],
         relatedUnknownIds: [],
@@ -86,7 +83,7 @@ describe("claimComparator", () => {
 
     expect(result.passed).toBe(false);
     expect(result.failures.map((failure) => failure.category)).toEqual(
-      expect.arrayContaining(["missing_claim", "missing_question", "forbidden_question"]),
+      expect.arrayContaining(["missing_claim", "forbidden_question"]),
     );
   });
 
@@ -111,7 +108,7 @@ describe("claimComparator", () => {
 
     expect(result.passed).toBe(false);
     expect(result.failures.map((failure) => failure.category)).toEqual(
-      expect.arrayContaining(["missing_claim", "missing_question", "forbidden_question"]),
+      expect.arrayContaining(["missing_claim", "forbidden_question"]),
     );
   });
 
@@ -124,7 +121,7 @@ describe("claimComparator", () => {
         id: "q",
         concern: "authentication",
         kind: "choose",
-        prompt: "Which access-control risk should the next test harness protect first.",
+        prompt: "Which future access-control change or risk should guide the next architecture review.",
         reason: "residual",
         relatedFactIds: [],
         relatedUnknownIds: [],

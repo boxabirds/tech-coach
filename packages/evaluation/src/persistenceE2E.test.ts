@@ -222,7 +222,10 @@ describe("persistence E2E workflows", () => {
       );
       expect(JSON.stringify(capture.assessment.evidence)).toContain("React/TypeScript frontend shape");
       expect(JSON.stringify(capture.assessment.evidence)).toContain("Runtime boundary");
-      expect(capture.assessment.action).toBe("Add test harness");
+      expect(capture.assessment.interactionContext).toBe("passive_baseline");
+      expect(capture.assessment.action).toBe("Continue");
+      expect(capture.assessment.reason).toContain("no immediate architecture move is required");
+      expect(capture.openQuestions).toEqual([]);
       expect(capture.assessment.principleGuidance).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
@@ -237,10 +240,21 @@ describe("persistence E2E workflows", () => {
       );
       const latestMarkdown = readFileSync(capture.artifactPaths!.latestAssessmentMd, "utf8");
       expect(latestMarkdown).toContain("Observed Architecture Shape");
+      expect(latestMarkdown).toContain("Baseline Readout");
+      expect(latestMarkdown).not.toContain("Blocked By Open Questions");
       expect(latestMarkdown).toContain("React/TypeScript");
-      expect(latestMarkdown).toContain("Rust/WASM boundary");
+      expect(latestMarkdown).toContain("Rust/WASM");
       expect(JSON.stringify(capture.assessment.evidence)).not.toContain(".ceetrix/tech-lead");
       expect(capture.assessment.reason).not.toContain("No concrete architecture evidence");
+
+      const activeCapture = await callMcp<CaptureAssessmentResult>("architecture.capture_assessment", {
+        cwd: repo,
+        request: "Change behavior across the React/WASM runtime boundary.",
+        now: "2026-05-01T11:00:40.000Z",
+        responseDetail: "full",
+      });
+      expect(activeCapture.assessment.interactionContext).toBe("pending_change_assessment");
+      expect(activeCapture.assessment.action).toBe("Add test harness");
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }

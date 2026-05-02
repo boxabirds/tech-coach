@@ -45,7 +45,7 @@ export function collectRepositoryTelemetry(
   const knownFiles = inventory.files;
   const changedFiles = listChangedFiles(repoRoot);
   const request = input.request
-    ?? "Assess this brownfield repository and recommend the next architecture move.";
+    ?? "Capture a passive repository baseline.";
   const context: SignalContext = {
     cwd: repoRoot,
     knownFiles,
@@ -64,6 +64,7 @@ export function collectRepositoryTelemetry(
     host: "ceetrix-tech-lead",
     event: "brownfield-capture",
     cwd: repoRoot,
+    ...(!input.request ? { interactionContext: "passive_baseline" as const } : {}),
     userRequest: request,
     recentRequests: [request],
     changedFiles,

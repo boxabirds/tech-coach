@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import type { ArchitectureClaim } from "../../kernel/src/claimTypes.js";
 import type { ArchitectureConcern, BaselineQuestion } from "../../kernel/src/baselineTypes.js";
 
@@ -61,7 +61,11 @@ export function loadManualBaselines(path: string): BrownfieldClaimBaseline[] {
   if (!Array.isArray(raw.repositories)) {
     throw new Error(`Manual baseline file must contain repositories[]: ${path}`);
   }
-  return raw.repositories;
+  const baseDir = dirname(path);
+  return raw.repositories.map((baseline) => ({
+    ...baseline,
+    path: isAbsolute(baseline.path) ? baseline.path : resolve(baseDir, baseline.path),
+  }));
 }
 
 export function loadArtifacts(repoRoot: string): BrownfieldClaimArtifacts {

@@ -33,10 +33,6 @@ for arg in "$@"; do
   esac
 done
 
-if [ -z "$REPOS" ]; then
-  REPOS="/Users/julian/expts/jp8 /Users/julian/expts/claude-backlog /Users/julian/expts/macscreencap"
-fi
-
 assert_file() {
   if [ ! -s "$1" ]; then
     echo "Expected non-empty file: $1" >&2
@@ -59,6 +55,10 @@ assert_not_contains() {
 }
 
 mkdir -p "$RUN_DIR"
+
+if [ -z "$REPOS" ]; then
+  REPOS="$ROOT_DIR/fixtures/brownfield-repos/runtime-boundary $ROOT_DIR/fixtures/brownfield-repos/rich-auth-platform $ROOT_DIR/fixtures/brownfield-repos/mac-package-deploy"
+fi
 
 for repo in $REPOS; do
   if [ ! -d "$repo" ]; then
@@ -91,7 +91,7 @@ for repo in $REPOS; do
   assert_file "$repo/.ceetrix/tech-lead/questions.json"
   assert_contains "$repo/.ceetrix/tech-lead/latest-assessment.md" "Observed Architecture Shape"
   assert_contains "$repo/.ceetrix/tech-lead/latest-assessment.md" "Generated report from the repo-local Ceetrix Tech Lead SQLite store"
-  assert_contains "$repo/.ceetrix/tech-lead/next-actions.md" "Next Actions"
+  assert_contains "$repo/.ceetrix/tech-lead/next-actions.md" "Baseline Readout"
   assert_not_contains "$output" "API Error"
   assert_not_contains "$output" "Invalid authentication"
   assert_not_contains "$output" "exceeds maximum allowed tokens"
@@ -102,12 +102,12 @@ for repo in $REPOS; do
   assert_not_contains "$output" "Horizon scan:"
 
   case "$name" in
-    jp8)
+    runtime-boundary)
       assert_contains "$repo/.ceetrix/tech-lead/latest-assessment.md" "React/TypeScript"
       assert_contains "$repo/.ceetrix/tech-lead/latest-assessment.md" "Rust/WASM"
-      assert_contains "$repo/.ceetrix/tech-lead/next-actions.md" "package_boundary/add_targeted_test_harness"
+      assert_contains "$repo/.ceetrix/tech-lead/next-actions.md" "No immediate architecture action is required"
       ;;
-    claude-backlog)
+    rich-auth-platform)
       assert_contains "$repo/.ceetrix/tech-lead/latest-assessment.md" "apps/web"
       assert_contains "$repo/.ceetrix/tech-lead/latest-assessment.md" "external OAuth"
       assert_contains "$repo/.ceetrix/tech-lead/latest-assessment.md" "Membership and role boundaries"
@@ -117,8 +117,8 @@ for repo in $REPOS; do
       assert_contains "$repo/.ceetrix/tech-lead/evidence.json" "docs/self-hosting.md"
       assert_contains "$repo/.ceetrix/tech-lead/evidence.json" "docs/ops/staging.md"
       assert_contains "$repo/.ceetrix/tech-lead/evidence.json" "scripts/deploy-production.sh"
-      assert_contains "$repo/.ceetrix/tech-lead/questions.json" "Which access-control risk should the next test harness protect first"
-      assert_contains "$repo/.ceetrix/tech-lead/questions.json" "Which rollout risk should guide the next operational check"
+      assert_not_contains "$repo/.ceetrix/tech-lead/questions.json" "Which access-control risk should the next test harness protect first"
+      assert_not_contains "$repo/.ceetrix/tech-lead/questions.json" "Which rollout risk should guide the next operational check"
       assert_not_contains "$repo/.ceetrix/tech-lead/questions.json" "API-key or MCP session authentication"
       assert_not_contains "$repo/.ceetrix/tech-lead/questions.json" "production, CLI-only, or legacy"
       assert_not_contains "$repo/.ceetrix/tech-lead/questions.json" "Which detected role, membership, or permission rule"
@@ -130,7 +130,7 @@ for repo in $REPOS; do
       assert_not_contains "$output" "Should the coach assume local-only use, private hosting, public hosting, or production service deployment"
       assert_contains "$repo/.ceetrix/tech-lead/latest-assessment.md" "Web users authenticate through an external OAuth provider"
       ;;
-    macscreencap)
+    mac-package-deploy)
       assert_contains "$repo/.ceetrix/tech-lead/latest-assessment.md" "Swift/macOS"
       assert_contains "$repo/.ceetrix/tech-lead/latest-assessment.md" "ScreencapMenuBar/Package.swift"
       assert_not_contains "$repo/.ceetrix/tech-lead/latest-assessment.md" "chrome_profile"

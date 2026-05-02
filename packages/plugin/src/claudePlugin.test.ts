@@ -122,6 +122,12 @@ describe("Claude Code plugin assets", () => {
     expect(skillText).toContain("architecture.answer_question");
     expect(skillText).toContain("Prior decision records are optional context");
     expect(skillText).toContain("Never describe the assessment as empty");
+    expect(skillText).toContain("## Inline And Follow-Up Architecture Questions");
+    expect(skillText).toContain("When the user invokes this skill with trailing text");
+    expect(skillText).toContain("normal follow-up architecture");
+    expect(skillText).toContain("architecture.query_assessment_graph");
+    expect(skillText).toContain("Answer with a grounded default recommendation before asking questions");
+    expect(skillText).toContain("Do not lead with a broad clarification interview");
     expect(skillText).toContain("\"questionId\"");
     expect(skillText).toContain("Allowed `action` values");
   });
@@ -137,7 +143,7 @@ describe("Claude Code plugin assets", () => {
     expect(section).toContain("briefly orient the user before the recommendation");
     expect(section).toContain("then continue into the assessment");
     expect(section).toContain("run the coach");
-    expect(section).toContain("answer blocking questions");
+    expect(section).toContain("answer follow-up questions only when the current work needs them");
     expect(section).toContain("confirm durable decisions");
     expect(section).not.toContain("[question-");
     expect(section).not.toContain("Choose one of these modes");

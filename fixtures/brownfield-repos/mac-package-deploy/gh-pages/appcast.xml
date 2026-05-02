@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss>
+  <channel>
+    <item>
+      <title>Production release</title>
+      <sparkle:version xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">1</sparkle:version>
+    </item>
+  </channel>
+</rss>

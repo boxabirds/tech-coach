@@ -17,7 +17,7 @@ Cover these points in plain English:
 - The local implementation uses this Claude Code skill, Tech Lead MCP tools, optional lifecycle hooks, repo-local `bun:sqlite` persistence, and generated Markdown/JSON reports under `.ceetrix/tech-lead/`.
 - `.ceetrix/tech-lead/tech-lead.db` is the durable local source of truth. `latest-assessment.md`, `questions.json`, `evidence.json`, `next-actions.md`, `decisions.jsonl`, and `changes-since-last.md` are generated reports, indexes, or exports from that store.
 - The coach engages for a first repository baseline, pending change assessment, structure review, horizon scan, lifecycle hook signal, or follow-up decision/answer capture.
-- The practical loop is: run the coach, let it inspect local signals, answer blocking questions, explicitly confirm durable decisions, and revisit generated reports or graph evidence on later runs.
+- The practical loop is: run the coach, let it inspect local signals, answer follow-up questions only when the current work needs them, explicitly confirm durable decisions, and revisit generated reports or graph evidence on later runs.
 
 When `orientation.shouldShowPreamble: false` and `orientation.state` is `existing_context`, do not repeat the full preamble. Use at most a short note that prior repository context was found, then continue.
 
@@ -29,7 +29,7 @@ Do not start by offering a menu of assessment modes.
 
 When the user invokes this skill without a specific instruction, assume they mean:
 
-> Look at this repository, create the durable Tech Lead assessment pack, and tell me what I should do next.
+> Look at this repository and create the durable Tech Lead baseline assessment pack.
 
 Then call `architecture.capture_assessment` with the active project `cwd`.
 
@@ -47,9 +47,9 @@ Use the index as the entrypoint:
 After the tool returns, respond with:
 
 1. First-use orientation only when the returned `orientation` says to show it.
-2. The recommended next move in plain English.
-3. The 1-3 most important reasons from the evidence.
-4. Any question that blocks confidence, asked directly.
+2. A concise baseline readout in plain English.
+3. The 1-3 most important claims or observations from the evidence.
+4. Immediate questions only when the current user request is asking for a change, risk review, deployment plan, or architecture decision.
 5. The artifact paths only as supporting detail.
 
 Do not show raw question ids or graph node ids in normal user-facing prose.
@@ -70,6 +70,37 @@ I’ll review the current repo and save the assessment so we can build on it.
 ```
 
 Then run the capture tool. Do not wait for the user to choose a mode.
+
+## Inline And Follow-Up Architecture Questions
+
+When the user invokes this skill with trailing text, treat that text as the
+active architecture question. When the user asks a normal follow-up architecture
+question after a Tech Lead baseline exists, treat that prompt the same way even
+if they did not use the slash command again.
+
+For active architecture questions:
+
+1. First use Tech Lead context. If a baseline exists, call
+   `architecture.query_assessment_graph` or `architecture.get_assessment_node`
+   for the relevant claims and evidence. If no baseline exists, call
+   `architecture.capture_assessment` first.
+2. Preserve the user's question as the current intent.
+3. Answer with a grounded default recommendation before asking questions.
+4. Name the evidence areas that shaped the answer, such as storage,
+   deployment, authentication, authorization, API contracts, package boundaries,
+   runtime shape, testing, or observability.
+5. Ask at most two residual future-intent questions, and only if the answers
+   would materially change the recommendation.
+
+Do not lead with a broad clarification interview. Do not ask the user to
+classify current repository facts that Tech Lead baseline evidence can answer.
+Avoid opening phrases such as "Before I can advise" when baseline context is
+available.
+
+For example, if the user asks how to create a local-only version after a
+baseline exists, first use the stored storage, deployment, auth, and boundary
+claims to propose the likely direction. Then ask only residual intent questions
+such as whether local-only means fully offline or no hosted-service dependency.
 
 ## Tool Selection
 
@@ -102,10 +133,10 @@ For brownfield repository review:
 
 1. Call `architecture.capture_assessment` with the active project `cwd` or `repoRoot`.
 2. Follow graph `navigationHints` for the top claim or open questions before giving the user a recommendation if the index alone is not enough.
-3. Tell the user the next architectural move, not the tool mode.
+3. For passive baseline captures, tell the user what was recorded and what stands out. Give a next architectural move only when the user requested one or the returned recommendation is active for the current intent.
 4. Mention whether the assessment was saved.
 5. Point to the returned `latest-assessment.md`, `questions.json`, and `next-actions.md` after the recommendation.
-6. Ask open questions from the graph index, `architecture.query_assessment_graph`, or persisted `questions.json` state.
+6. Ask open questions from the graph index, `architecture.query_assessment_graph`, or persisted `questions.json` state only when the current work needs those answers.
 7. Persist each answer with `architecture.answer_question`.
 8. Persist durable decisions only after explicit user confirmation with `architecture.record_decision` and `confirmed: true`.
 9. On rerun, treat previously answered questions and confirmed decisions as persisted context, but surface conflicts or changed evidence.

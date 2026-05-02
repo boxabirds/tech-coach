@@ -53,7 +53,7 @@ const claimRules: ClaimRule[] = [
     optionalFamilies: ["schema"],
     subject: "authorization boundary",
     claim: "Repository evidence shows role, membership, or permission boundaries.",
-    residualUnknowns: ["Which access-control risk should the next test harness protect first."],
+    residualUnknowns: ["Which future access-control change or risk should guide the next architecture review."],
   },
   {
     concern: "data_storage",
@@ -75,14 +75,14 @@ const claimRules: ClaimRule[] = [
     requiredFamilies: ["package_boundary"],
     optionalFamilies: ["runtime_boundary", "test_surface"],
     subject: "package or workspace boundary",
-    claim: "Package or workspace boundaries are visible and should be protected by boundary tests.",
+    claim: "Package or workspace boundaries are visible.",
   },
   {
     concern: "package_boundary",
     requiredFamilies: ["runtime_boundary"],
     optionalFamilies: ["test_surface"],
     subject: "runtime boundary",
-    claim: "Runtime boundary evidence is visible and should be protected by integration tests.",
+    claim: "Runtime boundary evidence is visible.",
   },
   {
     concern: "testing",
@@ -366,7 +366,7 @@ function specializeClaim(rule: ClaimRule, nodes: ArchitectureEvidenceNode[]): st
     return "A frontend surface depends on a separate native, WASM, or compiled runtime boundary.";
   }
   if (rule.concern === "package_boundary" && text.includes("package.swift")) {
-    return "Application package boundaries are visible and should be protected by package-level tests.";
+    return "Application package boundaries are visible.";
   }
   return rule.claim;
 }

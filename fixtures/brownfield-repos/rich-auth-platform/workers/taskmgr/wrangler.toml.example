@@ -1,0 +1,12 @@
+name = "taskmgr"
+main = "src/index.ts"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "taskmgr"
+
+[env.staging]
+name = "taskmgr-staging"
+
+[env.production]
+name = "taskmgr-production"

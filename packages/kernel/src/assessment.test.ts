@@ -73,7 +73,8 @@ describe("assessArchitecture", () => {
         host: "test",
         event: "brownfield-capture",
         cwd: "/repo",
-        recentRequests: ["Assess repository security model"],
+        userRequest: "Review repository security risk.",
+        recentRequests: ["Review repository security risk."],
         changedFiles: [],
         repoSignals: { status: "present", evidence: ["known files: 20"] },
         memoryRefs: [],
@@ -105,7 +106,7 @@ describe("assessArchitecture", () => {
         }),
       ]),
     );
-    expect(prompts).toContain("Which access-control risk should the next test harness protect first");
+    expect(prompts).toContain("Which future access-control change or risk should guide the next architecture review");
     expect(prompts).not.toContain("Should the coach assume no roles, admin-only controls, role-based access, or resource-level permissions?");
     expect(prompts).not.toContain("workers/taskmgr");
   });

@@ -11,6 +11,7 @@ import {
   collectClaudeHookTelemetry,
   effectForAssessment,
   handleClaudeHookEvent,
+  isArchitectureRelevantPrompt,
   normalizeClaudeLifecycleEvent,
   renderClaudeHookOutput,
 } from "./hookAdapter.js";
@@ -73,6 +74,77 @@ describe("Claude lifecycle hook adapter", () => {
       hook_event_name: "SessionStart",
       cwd: mkdtempSync(join(tmpdir(), "tech-lead-empty-session-")),
     });
+
+    expect(response.effect).toBe("none");
+  });
+
+  it("classifies architecture follow-up prompts without making ordinary chat relevant", () => {
+    expect(isArchitectureRelevantPrompt("how do I create a local-only version of Ceetrix")).toBe(true);
+    expect(isArchitectureRelevantPrompt("what is the right storage boundary for this")).toBe(true);
+    expect(isArchitectureRelevantPrompt("should we self-host the worker and database")).toBe(true);
+    expect(isArchitectureRelevantPrompt("thanks, that makes sense")).toBe(false);
+    expect(isArchitectureRelevantPrompt("rename this label to Projects")).toBe(false);
+  });
+
+  it("injects Tech Lead graph guidance for normal architecture follow-up after a baseline exists", () => {
+    const repo = mkdtempSync(join(tmpdir(), "tech-lead-follow-up-"));
+    mkdirSync(join(repo, ".ceetrix", "tech-lead"), { recursive: true });
+    writeFileSync(
+      join(repo, ".ceetrix", "tech-lead", "latest-assessment.md"),
+      [
+        "# Ceetrix Tech Lead Assessment",
+        "## Architecture Claims",
+        "- data_storage: Persistent data is backed by local schema.",
+        "- deployment: Hosted runtime evidence is present.",
+      ].join("\n"),
+    );
+
+    const response = handleClaudeHookEvent(
+      {
+        hook_event_name: "UserPromptSubmit",
+        cwd: repo,
+        prompt: "how do I create a local-only version of Ceetrix?",
+      },
+      { mode: "advisory" },
+      {
+        collectTelemetry: collectFixture,
+        assess: () => assessmentFixture({
+          status: "ok",
+          action: "Continue",
+          intervention: "note",
+          reason: "Current evidence does not require adding structure yet.",
+        }),
+      },
+    );
+
+    expect(response.effect).toBe("inject");
+    expect(response.message).toContain("Tech Lead baseline context is available");
+    expect(response.message).toContain("architecture.query_assessment_graph");
+    expect(response.message).toContain("grounded default recommendation first");
+  });
+
+  it("does not inject follow-up Tech Lead guidance for ordinary chat after a baseline exists", () => {
+    const repo = mkdtempSync(join(tmpdir(), "tech-lead-follow-up-chat-"));
+    mkdirSync(join(repo, ".ceetrix", "tech-lead"), { recursive: true });
+    writeFileSync(join(repo, ".ceetrix", "tech-lead", "latest-assessment.md"), "# baseline\n");
+
+    const response = handleClaudeHookEvent(
+      {
+        hook_event_name: "UserPromptSubmit",
+        cwd: repo,
+        prompt: "thanks, that's useful",
+      },
+      { mode: "advisory" },
+      {
+        collectTelemetry: collectFixture,
+        assess: () => assessmentFixture({
+          status: "ok",
+          action: "Continue",
+          intervention: "note",
+          reason: "Current evidence does not require adding structure yet.",
+        }),
+      },
+    );
 
     expect(response.effect).toBe("none");
   });

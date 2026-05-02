@@ -49,7 +49,7 @@ describe("assessment principle guidance", () => {
     const result = assessArchitecture({
       event: {
         ...exploratoryEvent,
-        userRequest: "Assess this existing app",
+        userRequest: "Change behavior across the React/WASM runtime boundary.",
         optionalSignals: [
           {
             source: "repository-shape",
@@ -76,6 +76,39 @@ describe("assessment principle guidance", () => {
       pattern: "add_targeted_test_harness",
       addNow: expect.stringContaining("React/TypeScript to Rust/WASM boundary"),
       doNotAddYet: expect.stringContaining("service boundary"),
+    });
+  });
+
+  it("records React plus Rust/WASM shape passively when no change is requested", () => {
+    const result = assessArchitecture({
+      event: {
+        ...exploratoryEvent,
+        userRequest: "Assess this existing app",
+        optionalSignals: [
+          {
+            source: "repository-shape",
+            status: "present",
+            category: "architecture_shape",
+            freshness: "current",
+            confidence: "high",
+            evidence: [
+              "React/TypeScript frontend shape: src/main.tsx, src/components/Waveform.tsx",
+              "Rust crate/native module shape: crates/dsp/Cargo.toml, crates/dsp/src/lib.rs",
+              "Runtime boundary: React/TypeScript UI depends on Rust/WASM or native-module code.",
+              "Test surface evidence: tests/dsp-boundary.test.ts",
+            ],
+          },
+        ],
+      },
+    });
+
+    expect(result.action).toBe("Continue");
+    expect(result.intervention).toBe("note");
+    expect(result.questions).toEqual([]);
+    expect(result.principleGuidance.find(
+      (item) => item.concern === "package_boundary",
+    )?.patterns[0]).toMatchObject({
+      pattern: "add_targeted_test_harness",
     });
   });
 

@@ -13,8 +13,8 @@ coverage/
 .turbo/
 .cache/
 .archcoach/
-.ceetrix/tech-lead/*.db
-.ceetrix/tech-lead/*.db-*
+.ceetrix/tech-lead/
+fixtures/brownfield-repos/**/.ceetrix/tech-lead/
 
 # Logs
 *.log

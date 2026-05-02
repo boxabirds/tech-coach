@@ -1,4 +1,5 @@
 import type {
+  ArchitectureInteractionContext,
   CoachEventEnvelope,
   DecisionRecordSummary,
   MaturityState,
@@ -171,6 +172,7 @@ export type BaselineInterviewInput = {
   baseline: ArchitectureBaseline;
   telemetry?: ArchitecturalTelemetryBundle;
   claims?: ArchitectureClaim[];
+  interactionContext?: ArchitectureInteractionContext;
 };
 
 export type BaselineAnswerMergeInput = {

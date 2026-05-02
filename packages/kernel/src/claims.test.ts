@@ -89,7 +89,7 @@ describe("architecture claims", () => {
           confidence: "high",
           claim: "Membership and role boundaries are visible and should be treated as load-bearing authorization.",
           residualUnknowns: [
-            "Which access-control risk should the next test harness protect first.",
+            "Which future access-control change or risk should guide the next architecture review.",
           ],
         }),
       ]),
@@ -155,12 +155,15 @@ describe("architecture claims", () => {
 
   it("asks future-risk authorization questions instead of broad taxonomy questions when authz evidence exists", () => {
     const result = assessArchitecture({
-      event: eventWithEvidence([
+      event: {
+        ...eventWithEvidence([
         "authentication.route: authentication route: apps/web/src/pages/SignIn.tsx",
         "authentication.external_provider: external identity provider: workers/taskmgr/src/auth/web-oauth.ts, workers/taskmgr/src/auth/github-urls.ts",
         "authentication.session: server-side session: workers/taskmgr/src/auth/web-sessions.ts, workers/taskmgr/src/mcp/session.ts",
         "authorization.authorization: role or membership boundary: workers/taskmgr/src/auth/membership.ts, workers/taskmgr/src/auth/membership.test.ts, workers/taskmgr/migrations/0051_user_projects_role.sql, workers/taskmgr/tests/db/user-projects.test.ts",
-      ]),
+        ]),
+        userRequest: "Review authorization risk before adding access-control changes.",
+      },
     });
     const prompts = result.questions.map((question) => question.prompt).join("\n");
 
@@ -173,19 +176,22 @@ describe("architecture claims", () => {
         }),
       ]),
     );
-    expect(prompts).toContain("Which access-control risk should the next test harness protect first");
+    expect(prompts).toContain("Which future access-control change or risk should guide the next architecture review");
     expect(prompts).not.toContain("Should the coach assume no roles, admin-only controls, role-based access, or resource-level permissions?");
     expect(prompts).not.toContain("workers/taskmgr");
   });
 
   it("promotes normalized config, doc, and code facts into concrete deployment claims", () => {
     const result = assessArchitecture({
-      event: eventWithFacts([
+      event: {
+        ...eventWithFacts([
         fact("deployment.environment.production", "deployment", "deployment_config", "deployment.environment", "Cloudflare production environment", "Cloudflare Workers has a configured production environment.", "workers/taskmgr/wrangler.toml.example"),
         fact("deployment.environment.staging.docs", "deployment", "deployment_config", "deployment.environment", "staging deployment documentation", "Bounded documentation describes staging deployment environment.", "docs/ops/staging.md"),
         fact("deployment.script.production", "deployment", "deployment_config", "deployment.script", "deployment script", "Deployment script references production environment.", "scripts/deploy-production.sh"),
         fact("deployment.runtime.worker", "deployment", "deployment_config", "deployment.runtime", "Cloudflare Workers runtime", "Cloudflare Workers runtime is configured.", "workers/taskmgr/wrangler.toml.example"),
-      ]),
+        ]),
+        userRequest: "Plan production deployment hardening.",
+      },
     });
     const prompts = result.questions.map((question) => question.prompt).join("\n");
 

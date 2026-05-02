@@ -1,4 +1,5 @@
 import {
+  type ArchitectureInteractionContext,
   type CoachEventEnvelope,
   type DecisionRecordSummary,
   type HostLifecycleEvent,
@@ -25,6 +26,7 @@ export function normalizeHostEvent(raw: HostLifecycleEvent): CoachEventEnvelope 
   const cwd = readRequiredString(raw, ["cwd", "workingDirectory"], "cwd", issues);
 
   const userRequest = readOptionalString(raw, ["userRequest", "user_request"]);
+  const interactionContext = readInteractionContext(raw, issues);
   const payloadRequest = readPayloadPrompt(raw);
   const recentRequests = readStringArray(raw, "recentRequests", issues)
     ?? readStringArray(raw, "recent_requests", issues)
@@ -61,6 +63,7 @@ export function normalizeHostEvent(raw: HostLifecycleEvent): CoachEventEnvelope 
     host,
     event,
     cwd,
+    ...(interactionContext ? { interactionContext } : {}),
     ...(userRequest ?? payloadRequest
       ? { userRequest: userRequest ?? payloadRequest }
       : {}),
@@ -72,6 +75,31 @@ export function normalizeHostEvent(raw: HostLifecycleEvent): CoachEventEnvelope 
     priorDecisions,
     optionalSignals,
   };
+}
+
+function readInteractionContext(
+  raw: Record<string, unknown>,
+  issues: ProtocolValidationIssue[],
+): ArchitectureInteractionContext | undefined {
+  const value = raw.interactionContext ?? raw.interaction_context;
+  if (value === undefined) {
+    return undefined;
+  }
+  if (
+    value === "passive_baseline"
+    || value === "requested_next_action"
+    || value === "pending_change_assessment"
+    || value === "risk_review"
+    || value === "deployment_planning"
+    || value === "architecture_decision"
+  ) {
+    return value;
+  }
+  issues.push({
+    field: "interactionContext",
+    message: "must be passive_baseline, requested_next_action, pending_change_assessment, risk_review, deployment_planning, or architecture_decision",
+  });
+  return undefined;
 }
 
 export const protocolSignalNormalizer = {

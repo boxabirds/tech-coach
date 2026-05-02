@@ -1,13 +1,13 @@
 {
   "repositories": [
     {
-      "name": "jp8",
-      "path": "/Users/julian/expts/jp8",
+      "name": "runtime-boundary",
+      "path": "../../../../fixtures/brownfield-repos/runtime-boundary",
       "requiredClaims": [
         {
           "concern": "package_boundary",
           "claimContains": ["frontend", "runtime boundary"],
-          "evidenceContains": ["src/App.tsx", "crates/jp8-core/Cargo.toml"]
+          "evidenceContains": ["src/App.tsx", "crates/core/Cargo.toml"]
         },
         {
           "concern": "testing",
@@ -22,8 +22,8 @@
       ]
     },
     {
-      "name": "claude-backlog",
-      "path": "/Users/julian/expts/claude-backlog",
+      "name": "rich-auth-platform",
+      "path": "../../../../fixtures/brownfield-repos/rich-auth-platform",
       "requiredClaims": [
         {
           "concern": "authentication",
@@ -55,10 +55,6 @@
           "claimContains": ["Package", "workspace"],
           "evidenceContains": ["apps/web", "workers"]
         }
-      ],
-      "requiredResidualQuestions": [
-        "Which access-control risk should the next test harness protect first",
-        "Which rollout risk should guide the next operational check"
       ],
       "requiredFacts": [
         {
@@ -108,8 +104,8 @@
       ]
     },
     {
-      "name": "macscreencap",
-      "path": "/Users/julian/expts/macscreencap",
+      "name": "mac-package-deploy",
+      "path": "../../../../fixtures/brownfield-repos/mac-package-deploy",
       "requiredClaims": [
         {
           "concern": "package_boundary",

@@ -176,6 +176,14 @@ export function handleClaudeHookEvent(
     }
 
     if (!shouldSurfaceAssessment(assessment)) {
+      const followUp = followUpEngagementResponse(event);
+      if (followUp) {
+        return finalizeResponse(event, followUp, config, runtime, {
+          now,
+          assessment,
+          telemetry: collected.telemetry,
+        });
+      }
       return finalizeResponse(event, { effect: "none" }, config, runtime, {
         now,
         assessment,
@@ -306,6 +314,72 @@ function shouldSurfaceAssessment(assessment: AssessmentResult): boolean {
   return !nonActionableReasons.has(assessment.reason);
 }
 
+export function isArchitectureRelevantPrompt(prompt: string | undefined): boolean {
+  if (!prompt) {
+    return false;
+  }
+  const text = prompt.toLowerCase();
+  if (containsAny(text, [
+    "architecture",
+    "architectural",
+    "how do i build",
+    "how do i add",
+    "how should i add",
+    "how do i create",
+    "how should i create",
+    "how do i refactor",
+    "how should i refactor",
+    "local-only",
+    "local only",
+    "offline",
+    "self-host",
+    "self host",
+    "on-prem",
+    "on prem",
+    "storage",
+    "database",
+    "sqlite",
+    "d1",
+    "auth",
+    "authentication",
+    "authorization",
+    "permission",
+    "role",
+    "deploy",
+    "deployment",
+    "hosting",
+    "public api",
+    "api contract",
+    "test strategy",
+    "test harness",
+    "runtime boundary",
+    "package boundary",
+    "state ownership",
+    "custom hook",
+    "separation of concerns",
+  ])) {
+    return true;
+  }
+  return /\b(add|create|build|refactor|replace|split|extract|move|deploy)\b.*\b(local|storage|database|auth|api|boundary|runtime|package|test|deploy|host|offline)\b/.test(text);
+}
+
+function followUpEngagementResponse(event: ClaudeLifecycleEvent): HookResponse | undefined {
+  if (event.kind !== "UserPromptSubmit" || !isArchitectureRelevantPrompt(event.userRequest)) {
+    return undefined;
+  }
+  if (!readDefaultMemoryContext(event.cwd)) {
+    return undefined;
+  }
+  return {
+    effect: "inject",
+    message: [
+      "Tech Lead baseline context is available for this architecture question.",
+      "Before advising, use the Tech Lead MCP graph: call architecture.query_assessment_graph or architecture.get_assessment_node for relevant claims and evidence.",
+      "Give a grounded default recommendation first, then ask at most two residual future-intent questions if they would materially change the recommendation.",
+    ].join("\n"),
+  };
+}
+
 export function effectForAssessment(
   intervention: InterventionLevel,
   mode: CoachMode,
@@ -385,6 +459,10 @@ function readDefaultMemoryContext(cwd: string): string | undefined {
     return undefined;
   }
   return readFileSync(path, "utf8");
+}
+
+function containsAny(value: string, needles: string[]): boolean {
+  return needles.some((needle) => value.includes(needle));
 }
 
 function diagnosticResponse(

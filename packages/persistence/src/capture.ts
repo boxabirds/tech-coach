@@ -33,7 +33,7 @@ import type {
 } from "./types.js";
 import { defaultDatabaseFile, defaultPersistenceDir } from "./types.js";
 
-const defaultCaptureRequest = "Assess this brownfield repository and recommend the next architecture move.";
+const defaultCaptureRequest = "Capture a passive repository baseline.";
 
 export function captureAssessment(
   input: CaptureAssessmentInput,

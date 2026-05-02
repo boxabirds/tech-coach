@@ -17,6 +17,7 @@ import {
 } from "./memory.js";
 import { normalizeHostEvent } from "./normalize.js";
 import type {
+  ArchitectureInteractionContext,
   CoachAction,
   CoachEventEnvelope,
   InterventionLevel,
@@ -73,6 +74,7 @@ export type AssessmentResult = {
   policy?: ArchitecturePolicyDecision;
   structureReasoning?: StructureAdequacyAssessment[];
   architectureDebt?: ArchitectureDebtAssessment[];
+  interactionContext?: ArchitectureInteractionContext;
 };
 
 export type AssessmentInput = {
@@ -121,10 +123,12 @@ export function assessArchitecture(input: AssessmentInput): AssessmentResult {
     priorDecisions: event.priorDecisions,
   });
   const claims = claimsForTelemetry(normalized.telemetry);
+  const interactionContext = classifyInteractionContext(event);
   const questions = planBaselineInterviewQuestions({
     baseline,
     telemetry: normalized.telemetry,
     claims,
+    interactionContext,
   });
   const structureReasoning = baseline.concerns
     .map((concern) => concern.adequacy)
@@ -141,6 +145,7 @@ export function assessArchitecture(input: AssessmentInput): AssessmentResult {
     questions,
     revisitAlerts,
     principleGuidance,
+    interactionContext,
   });
   const architectureDebt = buildArchitectureDebt(structureReasoning, normalized.memoryRecords);
 
@@ -165,8 +170,76 @@ export function assessArchitecture(input: AssessmentInput): AssessmentResult {
     policy,
     structureReasoning,
     architectureDebt,
+    interactionContext,
   };
 }
+
+export function classifyInteractionContext(
+  event: CoachEventEnvelope,
+): ArchitectureInteractionContext {
+  if (event.interactionContext) {
+    return event.interactionContext;
+  }
+
+  const text = [
+    event.event,
+    event.userRequest,
+    ...event.recentRequests,
+  ].filter(Boolean).join("\n").toLowerCase();
+
+  if (containsAny(text, [
+    "capture baseline",
+    "first repository baseline",
+    "repository baseline",
+    "baseline capture",
+    "assess this repository",
+    "assess repository",
+    "review current repo",
+    "review current repository",
+  ]) && !containsAny(text, activeIntentTerms)) {
+    return "passive_baseline";
+  }
+  if (containsAny(text, ["deploy", "release", "hosting", "production", "staging", "rollback"])) {
+    return "deployment_planning";
+  }
+  if (containsAny(text, ["risk review", "security review", "security risk", "risk", "audit", "threat", "compliance", "gdpr"])) {
+    return "risk_review";
+  }
+  if (containsAny(text, ["decide", "decision", "choose", "tradeoff", "adr", "record decision"])) {
+    return "architecture_decision";
+  }
+  if (
+    event.changedFiles.length > 0
+    || containsAny(text, ["change", "diff", "pr", "pull request", "implement", "add ", "create ", "refactor", "fix "])
+  ) {
+    return "pending_change_assessment";
+  }
+  if (containsAny(text, ["recommend", "next move", "what should", "what's next", "what next", "where to start"])) {
+    return "requested_next_action";
+  }
+  return "passive_baseline";
+}
+
+const activeIntentTerms = [
+  "recommend",
+  "next move",
+  "what should",
+  "what's next",
+  "what next",
+  "where to start",
+  "implement",
+  "add ",
+  "create ",
+  "refactor",
+  "fix ",
+  "deploy",
+  "release",
+  "risk",
+  "security review",
+  "test harness",
+  "decide",
+  "decision",
+];
 
 export function normalizeAssessmentInput(
   input: AssessmentInput | ArchitecturalTelemetryBundle | Record<string, unknown>,

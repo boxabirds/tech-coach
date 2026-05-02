@@ -76,10 +76,10 @@ export function renderLatestAssessment(pack: LatestAssessmentPack): string {
     "## Observed Architecture Shape",
     ...architectureShapeLines(pack),
     "",
-    "## Next Actions",
+    passiveBaseline(pack) ? "## Baseline Readout" : "## Next Actions",
     ...nextActionLines(pack),
     "",
-    "## Open Questions",
+    passiveBaseline(pack) ? "## Optional Future Context" : "## Open Questions",
     ...questionLines(pack.openQuestions),
     "",
     "## Answered Questions",
@@ -202,13 +202,13 @@ function normalizedFactsFromPack(pack: LatestAssessmentPack): unknown[] {
 
 function renderNextActions(pack: LatestAssessmentPack): string {
   return `${[
-    "# Next Actions",
+    passiveBaseline(pack) ? "# Baseline Readout" : "# Next Actions",
     "",
     ...nextActionLines(pack),
     "",
-    "## Blocked By Open Questions",
+    passiveBaseline(pack) ? "## Future Questions" : "## Blocked By Open Questions",
     ...questionLines(pack.openQuestions),
-    ...(pack.openQuestions.length === 0 ? ["- Nothing is blocked by open questions."] : []),
+    ...(pack.openQuestions.length === 0 && !passiveBaseline(pack) ? ["- Nothing is blocked by open questions."] : []),
     "",
   ].join("\n")}\n`;
 }
@@ -250,6 +250,13 @@ function renderChangesSinceLast(pack: LatestAssessmentPack): string {
 
 function nextActionLines(pack: LatestAssessmentPack): string[] {
   const assessment = pack.run.assessment;
+  if (passiveBaseline(pack)) {
+    return [
+      `- Baseline captured: ${assessment.reason}`,
+      "- No immediate architecture action is required from repository evidence alone.",
+      "- Use these claims as context when you ask for a change, risk review, deployment plan, or architecture decision.",
+    ];
+  }
   const lines = [
     `- ${assessment.action}: ${assessment.reason}`,
   ];
@@ -269,13 +276,17 @@ function nextActionLines(pack: LatestAssessmentPack): string[] {
 
 function questionLines(questions: LatestAssessmentPack["openQuestions"]): string[] {
   if (questions.length === 0) {
-    return ["- No open questions."];
+    return ["- No immediate user questions."];
   }
   return questions.flatMap((question) => [
     `- ${question.prompt}`,
     `  Question id: ${question.id}`,
     `  Reason: ${question.reason}`,
   ]);
+}
+
+function passiveBaseline(pack: LatestAssessmentPack): boolean {
+  return pack.run.assessment.interactionContext === "passive_baseline";
 }
 
 function answerLines(answers: PersistedAnswer[]): string[] {
