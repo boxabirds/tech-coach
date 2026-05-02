@@ -1,4 +1,8 @@
 import { spawn } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import type { ArchitectureConcern, BaselineConfidence } from "../../kernel/src/baselineTypes.js";
+import type { ArchitectureEvidenceFact, ArchitectureFactKind, ClaimEvidenceFamily } from "../../kernel/src/claimTypes.js";
 import type { OptionalSignalProvider, OptionalSignalResult, SignalContext } from "./index.js";
 import {
   codeIntelligenceSchemaVersion,
@@ -37,6 +41,67 @@ export function codeIntelligenceProvider(
     },
   };
 }
+
+export const staticCodeIntelligenceProvider: OptionalSignalProvider = {
+  name: "static-code-intelligence",
+  collect(context: SignalContext): OptionalSignalResult[] {
+    const files = selectSourceFiles(context.knownFiles ?? context.changedFiles).slice(0, 700);
+    if (files.length === 0) {
+      return [{
+        source: "static-code-intelligence",
+        status: "absent",
+        category: "diagnostic",
+        freshness: context.knownFiles ? "current" : "unknown",
+        confidence: "low",
+        evidence: [],
+        error: "no source files available for static code intelligence fallback",
+      }];
+    }
+
+    const facts = files.flatMap((path) => factsForSourceFile(context.cwd, path));
+    const relationships = facts
+      .filter((fact) => fact.kind === "code.import" || fact.kind === "code.symbol")
+      .slice(0, 30);
+    const architectureFacts = facts.filter((fact) => fact.kind !== "code.import" && fact.kind !== "code.symbol");
+    const output: OptionalSignalResult[] = [{
+      source: "static-code-intelligence",
+      status: "present",
+      category: "file_layout",
+      freshness: "current",
+      confidence: facts.length >= 8 ? "medium" : "low",
+      evidence: [
+        `static source files scanned: ${files.length}`,
+        `static code facts extracted: ${facts.length}`,
+      ],
+      details: { sourceFilesScanned: files.length },
+      facts,
+    }];
+
+    if (relationships.length > 0) {
+      output.push({
+        source: "static-code-intelligence",
+        status: "present",
+        category: "import_relationship",
+        freshness: "current",
+        confidence: "medium",
+        evidence: relationships.map(formatFactEvidence),
+        facts: relationships,
+      });
+    }
+    if (architectureFacts.length > 0) {
+      output.push({
+        source: "static-code-intelligence",
+        status: "present",
+        category: "architecture_claim",
+        freshness: "current",
+        confidence: architectureFacts.length >= 6 ? "high" : "medium",
+        evidence: architectureFacts.map(formatFactEvidence).slice(0, 60),
+        facts: architectureFacts,
+      });
+    }
+    return output;
+  },
+};
 
 export async function collectCodeIntelligenceEvidence(
   context: SignalContext,
@@ -148,6 +213,19 @@ export function codeIntelligenceReportToEvidence(
 
   const relevantDependencies = selectRelevantDependencies(report.dependencies, context.changedFiles);
   if (relevantDependencies.length > 0) {
+    const facts = relevantDependencies.slice(0, 60).map((dependency) =>
+      makeCodeFact({
+        id: `code.import.${dependency.source}.${dependency.target}`,
+        concern: "package_boundary",
+        family: "package_boundary",
+        kind: "code.import",
+        label: "code import relationship",
+        summary: `${dependency.source} imports or references ${dependency.target}.`,
+        path: dependency.source,
+        confidence: "medium",
+        relationships: [{ type: "imports", target: dependency.target }],
+      })
+    );
     evidence.push({
       source,
       status: "present",
@@ -155,11 +233,26 @@ export function codeIntelligenceReportToEvidence(
       freshness: "current",
       confidence: "medium",
       evidence: relevantDependencies.slice(0, 20).map(formatDependency),
+      facts,
     });
   }
 
   const relevantSymbols = selectRelevantSymbols(report.symbols, context.changedFiles);
   if (relevantSymbols.length > 0) {
+    const facts = relevantSymbols.slice(0, 60).map((symbol) =>
+      makeCodeFact({
+        id: `code.symbol.${symbol.location.file}.${symbol.name}`,
+        concern: concernForSymbol(symbol),
+        family: familyForSymbol(symbol),
+        kind: "code.symbol",
+        label: `${symbol.kind} ${symbol.name}`,
+        summary: `${symbol.kind} ${symbol.name} is declared in ${symbol.location.file}.`,
+        path: symbol.location.file,
+        line: symbol.location.startLine,
+        symbol: symbol.name,
+        confidence: "medium",
+      })
+    );
     evidence.push({
       source,
       status: "present",
@@ -167,6 +260,7 @@ export function codeIntelligenceReportToEvidence(
       freshness: "current",
       confidence: "medium",
       evidence: relevantSymbols.slice(0, 20).map(formatSymbol),
+      facts,
     });
   }
 
@@ -186,6 +280,253 @@ export function codeIntelligenceReportToEvidence(
   }
 
   return evidence;
+}
+
+function selectSourceFiles(files: string[]): string[] {
+  return files.filter((file) =>
+    /\.(tsx?|jsx?|mjs|cjs|rs|swift|go|py|rb|php|java|kt|cs)$/i.test(file)
+    && !/(^|\/)(node_modules|dist|build|coverage|test-results|playwright-report|target)\//.test(file)
+    && !/\.d\.ts$/i.test(file)
+  ).sort(compareSourcePath);
+}
+
+function factsForSourceFile(cwd: string, path: string): ArchitectureEvidenceFact[] {
+  const absolute = join(cwd, path);
+  if (!existsSync(absolute)) {
+    return [];
+  }
+  const content = readFileSync(absolute).subarray(0, 96_000).toString("utf8");
+  const facts: ArchitectureEvidenceFact[] = [];
+  for (const dependency of importTargets(content).slice(0, 12)) {
+    facts.push(makeCodeFact({
+      id: `code.import.${path}.${dependency}`,
+      concern: "package_boundary",
+      family: "package_boundary",
+      kind: "code.import",
+      label: "code import relationship",
+      summary: `${path} imports ${dependency}.`,
+      path,
+      confidence: "medium",
+      relationships: [{ type: "imports", target: dependency }],
+    }));
+  }
+  for (const symbol of exportedSymbols(content).slice(0, 8)) {
+    facts.push(makeCodeFact({
+      id: `code.symbol.${path}.${symbol.name}`,
+      concern: concernForSource(path, content),
+      family: familyForSource(path, content),
+      kind: "code.symbol",
+      label: `${symbol.kind} ${symbol.name}`,
+      summary: `${path} exports ${symbol.kind} ${symbol.name}.`,
+      path,
+      line: symbol.line,
+      symbol: symbol.name,
+      confidence: "medium",
+      relationships: [{ type: "exports", target: symbol.name }],
+    }));
+  }
+  if (/github/i.test(content) && /(oauth|accessToken|client_id|clientSecret|authorize)/i.test(content)) {
+    facts.push(makeCodeFact({
+      id: `auth.github-oauth.code.${path}`,
+      concern: "authentication",
+      family: "external_provider",
+      kind: "auth.github_oauth",
+      label: "GitHub OAuth code path",
+      summary: `${path} contains GitHub OAuth implementation evidence.`,
+      path,
+      excerpt: excerptFor(content, /github|oauth|accessToken|authorize/i),
+      confidence: "high",
+    }));
+  }
+  if (/(session|cookie)/i.test(content) && /(kv|storage|set|get|sign|verify|httpOnly)/i.test(content)) {
+    facts.push(makeCodeFact({
+      id: `auth.session.code.${path}`,
+      concern: "authentication",
+      family: "session",
+      kind: "auth.session",
+      label: "server-side session code path",
+      summary: `${path} contains session state implementation evidence.`,
+      path,
+      excerpt: excerptFor(content, /session|cookie|httpOnly|SESSION_KV/i),
+      confidence: "high",
+    }));
+  }
+  if (/(api[-_ ]?key|bearer|token)/i.test(content) && /(verify|hash|credential|authorization)/i.test(content)) {
+    facts.push(makeCodeFact({
+      id: `auth.credential.code.${path}`,
+      concern: "authentication",
+      family: "credential",
+      kind: "auth.credential",
+      label: "programmatic credential code path",
+      summary: `${path} contains API key, token, or credential implementation evidence.`,
+      path,
+      excerpt: excerptFor(content, /api[-_ ]?key|bearer|token|credential/i),
+      confidence: "medium",
+    }));
+  }
+  if (/(membership|role|permission|rbac|userProjects|project_id)/i.test(content) && /(allow|deny|authorize|require|select|insert|update|delete)/i.test(content)) {
+    facts.push(makeCodeFact({
+      id: `authz.membership-role.code.${path}`,
+      concern: "authorization",
+      family: "authorization",
+      kind: "authz.membership_role",
+      label: "role or membership code path",
+      summary: `${path} contains role, membership, or permission boundary evidence.`,
+      path,
+      excerpt: excerptFor(content, /membership|role|permission|rbac|userProjects/i),
+      confidence: "high",
+    }));
+  }
+  if (/(env\.DB|prepare\(|migrations?|d1|database)/i.test(content)) {
+    facts.push(makeCodeFact({
+      id: `storage.d1.code.${path}`,
+      concern: "data_storage",
+      family: /migrations?|schema/i.test(content) ? "schema" : "binding",
+      kind: /migrations?|schema/i.test(content) ? "storage.schema" : "binding.d1",
+      label: "D1 or database code path",
+      summary: `${path} contains persistent database usage evidence.`,
+      path,
+      excerpt: excerptFor(content, /env\.DB|prepare\(|d1|database|migration/i),
+      confidence: "medium",
+    }));
+  }
+  if (/(describe|it|test)\s*\(|expect\(|XCTest|#[\[]test/i.test(content) || /\.(test|spec)\.[cm]?[jt]sx?$/i.test(path) || /(^|\/)tests?\//i.test(path)) {
+    facts.push(makeCodeFact({
+      id: `test.surface.code.${path}`,
+      concern: "testing",
+      family: "test_surface",
+      kind: "test.surface",
+      label: "code test surface",
+      summary: `${path} contains test implementation evidence.`,
+      path,
+      excerpt: excerptFor(content, /(describe|it|test)\s*\(|expect\(|XCTest|#\[test\]/i),
+      confidence: "medium",
+    }));
+  }
+  if (/fetch\s*\(|addEventListener\s*\(\s*["']fetch|export\s+default\s*{[^}]*fetch/i.test(content)) {
+    facts.push(makeCodeFact({
+      id: `deployment.runtime.worker-code.${path}`,
+      concern: "deployment",
+      family: "deployment_config",
+      kind: "deployment.runtime",
+      label: "Worker-style request handler",
+      summary: `${path} contains Worker-style request handling evidence.`,
+      path,
+      excerpt: excerptFor(content, /fetch\s*\(|addEventListener\s*\(\s*["']fetch|export\s+default/i),
+      confidence: "medium",
+    }));
+  }
+  return facts;
+}
+
+function makeCodeFact(input: {
+  id: string;
+  concern: ArchitectureConcern;
+  family: ClaimEvidenceFamily;
+  kind: ArchitectureFactKind;
+  label: string;
+  summary: string;
+  path: string;
+  line?: number;
+  symbol?: string;
+  excerpt?: string;
+  confidence: BaselineConfidence;
+  relationships?: ArchitectureEvidenceFact["relationships"];
+}): ArchitectureEvidenceFact {
+  return {
+    id: stableId(input.id),
+    concern: input.concern,
+    family: input.family,
+    kind: input.kind,
+    label: input.label,
+    summary: input.summary,
+    source: "static-code-intelligence",
+    confidence: input.confidence,
+    freshness: "current",
+    provenance: [{
+      path: input.path,
+      ...(input.line !== undefined ? { line: input.line } : {}),
+      ...(input.symbol ? { symbol: input.symbol } : {}),
+      ...(input.excerpt ? { excerpt: input.excerpt } : {}),
+    }],
+    ...(input.relationships ? { relationships: input.relationships } : {}),
+  };
+}
+
+function importTargets(content: string): string[] {
+  return Array.from(new Set([
+    ...Array.from(content.matchAll(/\bimport\s+(?:[^'"]+\s+from\s+)?["']([^"']+)["']/g)).map((match) => match[1]),
+    ...Array.from(content.matchAll(/\brequire\s*\(\s*["']([^"']+)["']\s*\)/g)).map((match) => match[1]),
+  ])).filter(Boolean);
+}
+
+function exportedSymbols(content: string): Array<{ kind: string; name: string; line: number }> {
+  const lines = content.split(/\r?\n/);
+  const symbols: Array<{ kind: string; name: string; line: number }> = [];
+  lines.forEach((line, index) => {
+    const match = /\bexport\s+(?:async\s+)?(function|class|const|let|var|interface|type)\s+([A-Za-z0-9_$]+)/.exec(line)
+      ?? /\b(public\s+)?(struct|class|func|actor)\s+([A-Za-z0-9_]+)/.exec(line);
+    if (match) {
+      symbols.push({
+        kind: match[2] && match[2] !== undefined && !/function|class|const|let|var|interface|type/.test(match[2]) ? match[2] : match[1],
+        name: match[3] ?? match[2],
+        line: index + 1,
+      });
+    }
+  });
+  return symbols;
+}
+
+function concernForSource(path: string, content: string): ArchitectureConcern {
+  if (/auth|oauth|session|token|credential/i.test(path + content.slice(0, 5000))) return "authentication";
+  if (/membership|role|permission|rbac/i.test(path + content.slice(0, 5000))) return "authorization";
+  if (/db|database|migration|schema|d1/i.test(path + content.slice(0, 5000))) return "data_storage";
+  if (/deploy|worker|wrangler|fetch/i.test(path + content.slice(0, 5000))) return "deployment";
+  if (/test|spec|e2e/i.test(path)) return "testing";
+  return "package_boundary";
+}
+
+function familyForSource(path: string, content: string): ClaimEvidenceFamily {
+  const text = path + content.slice(0, 5000);
+  if (/oauth|github/i.test(text)) return "external_provider";
+  if (/session|cookie/i.test(text)) return "session";
+  if (/token|api[-_ ]?key|credential/i.test(text)) return "credential";
+  if (/membership|role|permission|rbac/i.test(text)) return "authorization";
+  if (/schema|migration/i.test(text)) return "schema";
+  if (/d1|db|kv|binding/i.test(text)) return "binding";
+  if (/worker|fetch|deploy/i.test(text)) return "deployment_config";
+  if (/test|spec|e2e/i.test(path)) return "test_surface";
+  return "package_boundary";
+}
+
+function concernForSymbol(symbol: CodeSymbol): ArchitectureConcern {
+  return concernForSource(symbol.location.file, symbol.name);
+}
+
+function familyForSymbol(symbol: CodeSymbol): ClaimEvidenceFamily {
+  return familyForSource(symbol.location.file, symbol.name);
+}
+
+function compareSourcePath(left: string, right: string): number {
+  return sourceRank(left) - sourceRank(right) || left.localeCompare(right);
+}
+
+function sourceRank(path: string): number {
+  let rank = 0;
+  if (/\/src\//.test(path)) rank -= 20;
+  if (/auth|session|membership|permission|worker|handler|route|migrations?/.test(path)) rank -= 25;
+  if (/\.test\.|\.spec\.|\/tests?\//.test(path)) rank += 12;
+  return rank;
+}
+
+function excerptFor(content: string, pattern: RegExp): string | undefined {
+  const line = content.split(/\r?\n/).find((candidate) => pattern.test(candidate));
+  return line?.trim().slice(0, 220);
+}
+
+function formatFactEvidence(fact: ArchitectureEvidenceFact): string {
+  const citations = fact.provenance.map((item) => item.path ?? item.excerpt).filter(Boolean).join(", ");
+  return `${fact.concern}.${fact.family}: ${fact.label}: ${citations || fact.summary}`;
 }
 
 async function runCommand(
@@ -371,6 +712,10 @@ function validateDiagnostics(diagnostics: CodeIntelligenceDiagnostic[]): void {
       throw new Error(`diagnostics[${index}] severity and message are required`);
     }
   });
+}
+
+function stableId(value: string): string {
+  return value.replace(/[^a-zA-Z0-9:_./-]+/g, "-").replace(/-+/g, "-");
 }
 
 function assertArray(value: unknown, field: string): asserts value is unknown[] {

@@ -297,10 +297,10 @@ export function renderCaptureOutput(
     `Reason: ${result.assessment.reason}`,
   ];
   if (result.artifactPaths) {
-    lines.push("Artifacts:");
-    lines.push(`- latest assessment: ${result.artifactPaths.latestAssessmentMd}`);
-    lines.push(`- questions: ${result.artifactPaths.questionsJson}`);
-    lines.push(`- next actions: ${result.artifactPaths.nextActionsMd}`);
+    lines.push("Generated reports from the local SQLite store:");
+    lines.push(`- latest assessment report: ${result.artifactPaths.latestAssessmentMd}`);
+    lines.push(`- question index: ${result.artifactPaths.questionsJson}`);
+    lines.push(`- next-action report: ${result.artifactPaths.nextActionsMd}`);
   }
   if (result.openQuestions.length > 0) {
     lines.push("Open questions:");

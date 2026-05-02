@@ -5,6 +5,8 @@ import {
   type BaselineQuestion,
 } from "./baselineTypes.js";
 import { planBaselineInterviewQuestions } from "./baselineInterview.js";
+import { claimsForTelemetry } from "./claims.js";
+import type { ArchitectureClaim } from "./claimTypes.js";
 import {
   decisionRecordsToSummaries,
   type DecisionRecord,
@@ -53,6 +55,7 @@ export type AssessmentResult = {
   };
   baseline: ArchitectureBaseline;
   questions: BaselineQuestion[];
+  claims?: ArchitectureClaim[];
   revisitAlerts: RevisitAlert[];
   principleGuidance: PrincipleGuidance[];
 };
@@ -102,9 +105,11 @@ export function assessArchitecture(input: AssessmentInput): AssessmentResult {
     telemetry: normalized.telemetry,
     priorDecisions: event.priorDecisions,
   });
+  const claims = claimsForTelemetry(normalized.telemetry);
   const questions = planBaselineInterviewQuestions({
     baseline,
     telemetry: normalized.telemetry,
+    claims,
   });
   const revisitAlerts = checkRevisit({
     event,
@@ -129,6 +134,7 @@ export function assessArchitecture(input: AssessmentInput): AssessmentResult {
     },
     baseline,
     questions,
+    claims,
     revisitAlerts,
     principleGuidance,
   };

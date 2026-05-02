@@ -76,14 +76,18 @@ archcoach capture --repo /path/to/target-repo --output text < event.json
 
 Capture writes repo-local state under `.ceetrix/tech-lead/`:
 
-- `tech-lead.db`: `bun:sqlite` store for assessment runs, answers, and confirmed decisions
-- `latest-assessment.md`: human-readable summary
-- `latest-assessment.json`: machine-readable latest run
-- `questions.json`: open, answered, and skipped questions
-- `evidence.json`: normalized evidence used by the recommendation
-- `next-actions.md`: focused action list
-- `decisions.jsonl`: exported confirmed decisions
-- `changes-since-last.md`: rerun delta summary
+- `tech-lead.db`: durable `bun:sqlite` source of truth for assessment runs, answers, confirmed decisions, diagnostics, telemetry, and artifact indexes
+- `latest-assessment.md`: generated human-readable latest assessment report
+- `latest-assessment.json`: generated machine-readable latest-run snapshot
+- `questions.json`: generated open, answered, and skipped question index
+- `evidence.json`: generated evidence and claims index used by the recommendation
+- `next-actions.md`: generated focused action report
+- `decisions.jsonl`: generated export of confirmed decisions
+- `changes-since-last.md`: generated rerun delta report
+
+The Markdown and JSON files are projections from the local database. They are
+convenient to inspect and cite, but the database is the canonical local state
+the coach updates between runs.
 
 Read-only assessment remains available through `archcoach assess` and must not
 create `.ceetrix/tech-lead/`.
@@ -117,6 +121,19 @@ Run the full Claude Code plugin e2e against the three brownfield fixtures:
 bun run test:claude-e2e
 ```
 
+Run the claim-quality evaluation against the same repos and compare the output
+to manual baselines:
+
+```sh
+bun run test:claims-e2e
+```
+
+Both Claude e2e commands reset each target repo's generated
+`.ceetrix/tech-lead/` state before running, so results start from a clean
+Tech Lead database instead of prior assessment history. Pass `--no-clean`
+directly to `scripts/e2e-claude-brownfield.sh` only when deliberately inspecting
+stateful follow-up behavior.
+
 This loads the local Claude plugin from this checkout for
 `~/expts/jp8`, `~/expts/claude-backlog`, and `~/expts/macscreencap`, runs:
 
@@ -130,6 +147,15 @@ claude \
 
 and asserts that the durable `.ceetrix/tech-lead/` assessment pack is created
 with repo-specific architectural signals.
+
+The MCP capture path returns a bounded assessment graph index by default. Hosts
+can page through persisted assessment knowledge with
+`architecture.query_assessment_graph` and inspect one claim, question, artifact,
+or evidence item with `architecture.get_assessment_node`; full assessment detail
+stays in `.ceetrix/tech-lead/` artifacts.
+
+The claim-quality suite is documented in
+`docs/evaluation/brownfield-claims.md`.
 
 By default, the script is read-only for the target repo. It samples file layout,
 changed files, git history, optional transcript history, existing architecture

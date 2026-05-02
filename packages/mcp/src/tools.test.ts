@@ -25,6 +25,8 @@ describe("architecture MCP tool contracts", () => {
     expect(listArchitectureTools().map((tool) => tool.name)).toEqual([
       "architecture.assess_change",
       "architecture.capture_assessment",
+      "architecture.query_assessment_graph",
+      "architecture.get_assessment_node",
       "architecture.plan_interview",
       "architecture.apply_interview_answers",
       "architecture.answer_question",
@@ -286,6 +288,8 @@ describe("architecture MCP tool contracts", () => {
     expect(list?.result).toMatchObject({
       tools: expect.arrayContaining([
         expect.objectContaining({ name: "architecture.assess_change" }),
+        expect.objectContaining({ name: "architecture.query_assessment_graph" }),
+        expect.objectContaining({ name: "architecture.get_assessment_node" }),
       ]),
     });
     expect(call?.result).toMatchObject({

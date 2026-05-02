@@ -95,6 +95,7 @@ export type CaptureAssessmentResult = {
   runId: string;
   previousRunId?: string;
   assessment: AssessmentResult;
+  telemetry?: ArchitecturalTelemetryBundle;
   openQuestions: BaselineQuestion[];
   answeredQuestions: PersistedAnswer[];
   skippedQuestions: PersistedAnswer[];

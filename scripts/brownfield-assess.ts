@@ -11,6 +11,7 @@ import {
   type CaptureAssessmentResult,
 } from "../packages/persistence/src/index.js";
 import { architectureShapeProvider } from "../packages/signals/src/architectureShape.js";
+import { claimCandidateProvider } from "../packages/signals/src/claimCandidates.js";
 import { codeIntelligenceProvider } from "../packages/signals/src/codeIntelligence.js";
 import { configBoundaryProvider } from "../packages/signals/src/config.js";
 import { diagnosticsProvider } from "../packages/signals/src/diagnostics.js";
@@ -88,6 +89,7 @@ async function main(): Promise<void> {
     [
       fileTreeProvider,
       architectureShapeProvider,
+      claimCandidateProvider,
       gitDiffProvider,
       configBoundaryProvider,
       diagnosticsProvider,
@@ -519,7 +521,8 @@ function renderText(input: {
   if (input.result.questions.length > 0) {
     lines.push("Questions to answer before relying on assumptions:");
     for (const question of input.result.questions) {
-      lines.push(`- ${question.id}: ${question.prompt}`);
+      lines.push(`- ${question.prompt}`);
+      lines.push(`  Question id: ${question.id}`);
       lines.push(`  Why: ${question.reason}`);
       if (question.interactionGuidance) {
         lines.push(`  Style: ${question.interactionGuidance.questionStyle}`);
@@ -559,14 +562,14 @@ function renderText(input: {
 
   if (input.capture) {
     lines.push("", "Durable Assessment Pack", "-----------------------");
-    lines.push(`Store: ${input.capture.storePath}`);
+    lines.push(`Source-of-truth store: ${input.capture.storePath}`);
     lines.push(`Lifecycle: ${input.capture.lifecycleState}`);
     if (input.capture.artifactPaths) {
-      lines.push(`Latest assessment: ${input.capture.artifactPaths.latestAssessmentMd}`);
-      lines.push(`Questions: ${input.capture.artifactPaths.questionsJson}`);
-      lines.push(`Next actions: ${input.capture.artifactPaths.nextActionsMd}`);
+      lines.push(`Latest assessment report: ${input.capture.artifactPaths.latestAssessmentMd}`);
+      lines.push(`Question index: ${input.capture.artifactPaths.questionsJson}`);
+      lines.push(`Next-action report: ${input.capture.artifactPaths.nextActionsMd}`);
     } else {
-      lines.push("No durable artifact paths were created.");
+      lines.push("No generated report paths were created.");
     }
   }
 

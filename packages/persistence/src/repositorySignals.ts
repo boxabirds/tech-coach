@@ -1,15 +1,19 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join, relative, resolve } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import type { CoachEventEnvelope } from "../../kernel/src/protocol.js";
 import type { TestSummary } from "../../kernel/src/protocol.js";
 import { telemetryFromEvidence } from "../../kernel/src/telemetry.js";
 import type { ArchitecturalTelemetryBundle } from "../../kernel/src/telemetryTypes.js";
 import { architectureShapeProvider } from "../../signals/src/architectureShape.js";
+import { claimCandidateProvider } from "../../signals/src/claimCandidates.js";
+import { staticCodeIntelligenceProvider } from "../../signals/src/codeIntelligence.js";
 import { configBoundaryProvider } from "../../signals/src/config.js";
+import { documentationProvider } from "../../signals/src/documentation.js";
 import { diagnosticsProvider } from "../../signals/src/diagnostics.js";
 import { fileTreeProvider } from "../../signals/src/fileTree.js";
 import { gitDiffProvider } from "../../signals/src/gitDiff.js";
+import { buildProjectInventory, inventoryProvider, isIgnoredProjectPath } from "../../signals/src/inventory.js";
 import type {
   OptionalSignalResult,
   SignalContext,
@@ -23,29 +27,6 @@ export type RepositorySignalCollectionInput = {
   maxFiles?: number;
 };
 
-const ignoredDirs = new Set([
-  ".git",
-  ".ceetrix",
-  ".claude",
-  ".agents",
-  "node_modules",
-  "dist",
-  "build",
-  ".build",
-  "coverage",
-  "test-results",
-  "playwright-report",
-  ".next",
-  ".turbo",
-  ".cache",
-  "chrome_profile",
-  "Code Cache",
-  "CacheStorage",
-  "GPUCache",
-  "Service Worker",
-  "target",
-]);
-
 export function collectRepositoryTelemetry(
   input: RepositorySignalCollectionInput,
 ): {
@@ -54,13 +35,15 @@ export function collectRepositoryTelemetry(
   optionalSignals: OptionalSignalResult[];
 } {
   const repoRoot = resolve(input.repoRoot);
-  const knownFiles = listKnownFiles(repoRoot, input.maxFiles ?? 1500);
+  const inventory = buildProjectInventory(repoRoot, input.maxFiles ?? 1500);
+  const knownFiles = inventory.files;
   const changedFiles = listChangedFiles(repoRoot);
   const request = input.request
     ?? "Assess this brownfield repository and recommend the next architecture move.";
   const context: SignalContext = {
     cwd: repoRoot,
     knownFiles,
+    inventory,
     changedFiles,
     userRequest: request,
     recentRequests: [request],
@@ -101,10 +84,14 @@ export function collectRepositoryTelemetry(
 
 function collectSynchronousProviders(context: SignalContext): OptionalSignalResult[] {
   return [
+    inventoryProvider,
     fileTreeProvider,
     architectureShapeProvider,
+    claimCandidateProvider,
     gitDiffProvider,
     configBoundaryProvider,
+    documentationProvider,
+    staticCodeIntelligenceProvider,
     diagnosticsProvider,
   ].flatMap((provider) => {
     try {
@@ -144,19 +131,11 @@ function normalizeProviderOutput(
   return Array.isArray(output) ? output : [output];
 }
 
-function listKnownFiles(repoRoot: string, maxFiles: number): string[] {
-  const gitFiles = runGit(repoRoot, ["ls-files"]);
-  if (gitFiles.length > 0) {
-    return gitFiles.filter((file) => !isIgnoredPath(file)).slice(0, maxFiles);
-  }
-  return walkFiles(repoRoot, repoRoot, maxFiles);
-}
-
 function listChangedFiles(repoRoot: string): string[] {
   return Array.from(new Set([
     ...runGit(repoRoot, ["diff", "--name-only", "HEAD"]),
     ...runGit(repoRoot, ["ls-files", "--others", "--modified", "--exclude-standard"]),
-  ])).filter((file) => !isIgnoredPath(file)).sort();
+  ])).filter((file) => !isIgnoredProjectPath(file)).sort();
 }
 
 function readTestSummary(repoRoot: string): TestSummary {
@@ -190,29 +169,4 @@ function runGit(repoRoot: string, args: string[]): string[] {
   } catch {
     return [];
   }
-}
-
-function walkFiles(root: string, current: string, maxFiles: number, files: string[] = []): string[] {
-  if (files.length >= maxFiles) {
-    return files;
-  }
-  for (const entry of readdirSync(current, { withFileTypes: true })) {
-    if (files.length >= maxFiles) {
-      break;
-    }
-    if (ignoredDirs.has(entry.name)) {
-      continue;
-    }
-    const absolute = join(current, entry.name);
-    if (entry.isDirectory()) {
-      walkFiles(root, absolute, maxFiles, files);
-    } else if (entry.isFile()) {
-      files.push(relative(root, absolute));
-    }
-  }
-  return files;
-}
-
-function isIgnoredPath(file: string): boolean {
-  return file.split("/").some((part) => ignoredDirs.has(part));
 }

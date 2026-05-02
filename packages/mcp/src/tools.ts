@@ -1,4 +1,4 @@
-import { basename, dirname, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import {
   assessArchitecture,
   AssessmentValidationError,
@@ -39,15 +39,32 @@ import {
   type ArchitecturalTelemetryBundle,
 } from "../../kernel/src/telemetryTypes.js";
 import {
+  AssessmentGraphError,
+  buildAssessmentGraph,
+  createAssessmentIndex,
+  getAssessmentNode,
+  queryAssessmentGraph,
+  type AssessmentIndexResult,
+  type GraphPage,
+  type GraphQuery,
+  type NodeDetail,
+  type NodeDetailQuery,
+  type AssessmentGraphNodeType,
+  type AssessmentGraphRelation,
+} from "../../persistence/src/assessmentGraph.js";
+import {
   applyPersistedAnswer,
   captureAssessment,
   confirmPersistedDecision,
+  openPersistenceStore,
   type CaptureAssessmentResult,
 } from "../../persistence/src/index.js";
 
 export type ArchitectureCoachToolName =
   | "architecture.assess_change"
   | "architecture.capture_assessment"
+  | "architecture.query_assessment_graph"
+  | "architecture.get_assessment_node"
   | "architecture.plan_interview"
   | "architecture.apply_interview_answers"
   | "architecture.answer_question"
@@ -130,6 +147,8 @@ export type StructureReviewResult = {
   doNotAdd: string[];
 };
 
+export type CaptureAssessmentToolResult = CaptureAssessmentResult | AssessmentIndexResult;
+
 export type ArchitectureToolRuntime = {
   cwd?: string;
   readMemory?: (path: string) => MemorySummary;
@@ -149,7 +168,15 @@ export const architectureTools: ToolDescriptor[] = [
   ),
   descriptor(
     "architecture.capture_assessment",
-    "Run a durable brownfield assessment and write the repo-local .ceetrix/tech-lead SQLite store plus artifact pack.",
+    "Run a durable brownfield assessment and return a bounded graph index. Full details stay in .ceetrix/tech-lead artifacts and can be loaded through graph navigation tools.",
+  ),
+  descriptor(
+    "architecture.query_assessment_graph",
+    "Read a bounded page of the persisted assessment graph by node type, concern, relation, limit, and cursor.",
+  ),
+  descriptor(
+    "architecture.get_assessment_node",
+    "Read one persisted assessment graph node plus a bounded page of related edges.",
   ),
   descriptor(
     "architecture.plan_interview",
@@ -204,6 +231,10 @@ export function invokeArchitectureTool(
         return success(name, assessChange(input, runtime));
       case "architecture.capture_assessment":
         return success(name, captureAssessmentTool(input, runtime));
+      case "architecture.query_assessment_graph":
+        return success(name, queryAssessmentGraphTool(input, runtime));
+      case "architecture.get_assessment_node":
+        return success(name, getAssessmentNodeTool(input, runtime));
       case "architecture.plan_interview":
         return success(name, planInterview(input));
       case "architecture.apply_interview_answers":
@@ -256,12 +287,49 @@ export function assessChange(
 export function captureAssessmentTool(
   input: unknown,
   runtime: ArchitectureToolRuntime = {},
-): CaptureAssessmentResult {
+): CaptureAssessmentToolResult {
   const value = requireRecord(input, "input");
-  return captureAssessment({
+  const result = captureAssessment({
     ...value,
     repoRoot: readActiveProjectRoot(value) ?? runtime.cwd,
   });
+  return wantsFullCaptureResult(value) ? result : compactCaptureAssessmentResult(result);
+}
+
+export function queryAssessmentGraphTool(
+  input: unknown,
+  runtime: ArchitectureToolRuntime = {},
+): GraphPage {
+  const value = requireRecord(input, "input");
+  const loaded = loadPersistedGraph(value, runtime);
+  return queryAssessmentGraph(loaded.graph, {
+    runId: loaded.graph.runId,
+    nodeTypes: readStringArray(value.nodeTypes) as AssessmentGraphNodeType[] | undefined,
+    concerns: readStringArray(value.concerns) as never,
+    relations: readStringArray(value.relations) as AssessmentGraphRelation[] | undefined,
+    purpose: readString(value.purpose),
+    limit: readBoundedNumber(value.limit),
+    cursor: readString(value.cursor),
+  } satisfies GraphQuery);
+}
+
+export function getAssessmentNodeTool(
+  input: unknown,
+  runtime: ArchitectureToolRuntime = {},
+): NodeDetail {
+  const value = requireRecord(input, "input");
+  const loaded = loadPersistedGraph(value, runtime);
+  const nodeId = readString(value.nodeId);
+  if (!nodeId) {
+    throw new ToolInputError("input.nodeId", "is required");
+  }
+  return getAssessmentNode(loaded.graph, {
+    runId: loaded.graph.runId,
+    nodeId,
+    includeEdges: typeof value.includeEdges === "boolean" ? value.includeEdges : true,
+    edgeLimit: readBoundedNumber(value.edgeLimit),
+    edgeCursor: readString(value.edgeCursor),
+  } satisfies NodeDetailQuery);
 }
 
 export function planInterview(input: unknown): BaselineQuestion[] {
@@ -295,12 +363,12 @@ export function applyInterviewAnswers(input: unknown): ArchitectureBaseline {
 export function answerQuestion(
   input: unknown,
   runtime: ArchitectureToolRuntime = {},
-): CaptureAssessmentResult {
+): CaptureAssessmentToolResult {
   const value = requireRecord(input, "input");
   if (typeof value.questionId !== "string" || value.questionId.trim().length === 0) {
     throw new ToolInputError("input.questionId", "is required");
   }
-  return applyPersistedAnswer({
+  const result = applyPersistedAnswer({
     ...value,
     repoRoot: readActiveProjectRoot(value) ?? runtime.cwd,
     questionId: value.questionId,
@@ -308,6 +376,7 @@ export function answerQuestion(
     value: readString(value.value),
     note: readString(value.note),
   });
+  return wantsFullCaptureResult(value) ? result : compactCaptureAssessmentResult(result);
 }
 
 export function horizonScan(
@@ -339,15 +408,16 @@ export function reviewStructure(
 export function recordDecision(
   input: unknown,
   runtime: ArchitectureToolRuntime = {},
-): DecisionResult | CaptureAssessmentResult {
+): DecisionResult | CaptureAssessmentToolResult {
   const value = requireRecord(input, "input");
   if (value.confirmed === true || value.persistence === "tech-lead") {
-    return confirmPersistedDecision({
+    const result = confirmPersistedDecision({
       ...value,
       repoRoot: readActiveProjectRoot(value) ?? runtime.cwd,
       decision: assertDecisionRecord(value.decision),
       confirmed: value.confirmed === true,
     });
+  return wantsFullCaptureResult(value) ? result : compactCaptureAssessmentResult(result);
   }
   const repoRoot = readRepoRoot(value, runtime);
   const record = assertDecisionRecord(value.decision);
@@ -356,6 +426,64 @@ export function recordDecision(
     ? runtime.appendDecision(repoRoot, record, memoryOptions)
     : appendDecision(repoRoot, record, memoryOptions);
   return { written: true, record, memoryPath };
+}
+
+function compactCaptureAssessmentResult(result: CaptureAssessmentResult): AssessmentIndexResult {
+  return createAssessmentIndex(result);
+}
+
+function wantsFullCaptureResult(value: Record<string, unknown>): boolean {
+  return value.responseDetail === "full";
+}
+
+function loadPersistedGraph(
+  value: Record<string, unknown>,
+  runtime: ArchitectureToolRuntime,
+) {
+  const repoRoot = readRepoRoot(value, runtime);
+  const store = openPersistenceStore(repoRoot, {
+    ...(typeof value.persistenceDir === "string" ? { persistenceDir: value.persistenceDir } : {}),
+    ...(typeof value.databaseFile === "string" ? { databaseFile: value.databaseFile } : {}),
+  });
+  try {
+    const runId = readString(value.runId);
+    const run = runId ? store.getRun(runId) : store.latestRun();
+    if (!run) {
+      throw new ToolInputError(runId ? "input.runId" : "input.repoRoot", "no persisted assessment run exists");
+    }
+    const answers = store.listAnswers();
+    const decisions = store.listDecisions();
+    const result: CaptureAssessmentResult = {
+      durableRecordCreated: run.durableRecordCreated,
+      storePath: store.databasePath,
+      runId: run.runId,
+      ...(run.previousRunId ? { previousRunId: run.previousRunId } : {}),
+      assessment: run.assessment,
+      ...(run.telemetry ? { telemetry: run.telemetry } : {}),
+      openQuestions: run.assessment.questions,
+      answeredQuestions: answers.filter((answer) => answer.status === "answered"),
+      skippedQuestions: answers.filter((answer) => answer.status === "skipped"),
+      decisions,
+      artifactPaths: artifactPathsForStoreDir(store.storeDir),
+      diagnostics: run.diagnostics,
+      lifecycleState: run.lifecycleState,
+    };
+    return { graph: buildAssessmentGraph(result), run };
+  } finally {
+    store.close();
+  }
+}
+
+function artifactPathsForStoreDir(storeDir: string): CaptureAssessmentResult["artifactPaths"] {
+  return {
+    latestAssessmentMd: join(storeDir, "latest-assessment.md"),
+    latestAssessmentJson: join(storeDir, "latest-assessment.json"),
+    questionsJson: join(storeDir, "questions.json"),
+    evidenceJson: join(storeDir, "evidence.json"),
+    nextActionsMd: join(storeDir, "next-actions.md"),
+    decisionsJsonl: join(storeDir, "decisions.jsonl"),
+    changesSinceLastMd: join(storeDir, "changes-since-last.md"),
+  };
 }
 
 export function checkRevisitTriggers(
@@ -452,6 +580,20 @@ function readLimit(value: unknown): number | undefined {
   return typeof value === "number" && Number.isInteger(value) && value >= 0
     ? value
     : undefined;
+}
+
+function readBoundedNumber(value: unknown): number | undefined {
+  return typeof value === "number" ? value : undefined;
+}
+
+function readStringArray(value: unknown): string[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) {
+    throw new ToolInputError("input.filter", "must be an array of strings");
+  }
+  return value;
 }
 
 function readRepoRoot(
@@ -582,6 +724,9 @@ function errorToToolError(error: unknown): ToolError {
       message: error.message,
       field: issue?.field,
     };
+  }
+  if (error instanceof AssessmentGraphError) {
+    return { code: "invalid_input", message: error.message, field: error.field };
   }
   if (error instanceof Error) {
     return { code: "kernel_unavailable", message: error.message };

@@ -12,6 +12,7 @@
     "build:mcp": "bun build mcp/server/index.ts --target=node --outfile dist/mcp-server.js",
     "test": "vitest run",
     "test:claude-e2e": "scripts/e2e-claude-brownfield.sh",
+    "test:claims-e2e": "bun scripts/evaluate-brownfield-claims.ts --run-claude",
     "test:persistence": "bun test packages/persistence/src/persistence.integration.test.ts packages/evaluation/src/persistenceE2E.test.ts",
     "typecheck": "tsc --noEmit"
   },

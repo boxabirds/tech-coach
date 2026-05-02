@@ -3,6 +3,7 @@ import { planBaselineInterviewQuestions } from "./baselineInterview.js";
 import { synthesizeArchitectureBaseline } from "./baseline.js";
 import { emptyTelemetryBundle, telemetryFromEvent, telemetryFromEvidence } from "./telemetry.js";
 import { collectHistoryInteractionEvidence } from "../../signals/src/historyProviders.js";
+import type { ArchitectureClaim } from "./claimTypes.js";
 import {
   baseEvent,
   brownfieldEvent,
@@ -95,6 +96,61 @@ describe("planBaselineInterviewQuestions", () => {
           relatedSignalIds: ["diagnostic-change-conflict"],
         }),
       ]),
+    );
+  });
+
+  it("replaces generic authorization taxonomy questions with grounded claim residuals", () => {
+    const baseline = synthesizeArchitectureBaseline({
+      event: brownfieldEvent,
+      evidence: [
+        signal("claim-candidates", "architecture_claim", "low", [
+          "authorization.authorization: role or membership boundary: workers/taskmgr/src/auth/membership.ts, workers/taskmgr/src/auth/membership.test.ts, workers/taskmgr/migrations/0051_user_projects_role.sql, workers/taskmgr/tests/db/user-projects.test.ts",
+        ]),
+      ],
+    });
+    const claims: ArchitectureClaim[] = [{
+      id: "claim-authorization-membership",
+      concern: "authorization",
+      subject: "authorization boundary",
+      claim: "Project membership and role boundaries are visible and should be treated as load-bearing authorization.",
+      confidence: "medium",
+      evidenceNodeIds: ["evidence-authz"],
+      evidence: [
+        "workers/taskmgr/src/auth/membership.ts",
+        "workers/taskmgr/src/auth/membership.test.ts",
+        "workers/taskmgr/migrations/0051_user_projects_role.sql",
+        "workers/taskmgr/tests/db/user-projects.test.ts",
+      ],
+      counterEvidence: [],
+      residualUnknowns: [
+        "Which detected role, membership, or permission rule is load-bearing for the next test harness.",
+      ],
+    }];
+
+    const questions = planBaselineInterviewQuestions({ baseline, claims }, 6);
+    const prompts = questions.map((question) => question.prompt).join("\n");
+
+    expect(prompts).toContain("Project membership and role boundaries");
+    expect(prompts).toContain("Which detected role, membership, or permission rule");
+    expect(prompts).not.toContain("Should the coach assume no roles, admin-only controls, role-based access, or resource-level permissions?");
+    expect(questions.find((question) => question.concern === "authorization")).toMatchObject({
+      id: "question-claim-authorization-claim-authorization-membership-0",
+      options: expect.arrayContaining(["project membership roles", "unknown"]),
+    });
+  });
+
+  it("keeps broad authorization setup questions for true unknown evidence", () => {
+    const baseline = synthesizeArchitectureBaseline({
+      event: brownfieldEvent,
+      evidence: brownfieldEvidence,
+    });
+
+    const questions = planBaselineInterviewQuestions({ baseline }, 8);
+    const authorization = questions.find((question) => question.concern === "authorization");
+
+    expect(authorization?.prompt).toBe("What authorization or role boundary should the coach assume for this project right now?");
+    expect(authorization?.options).toEqual(
+      expect.arrayContaining(["no roles yet", "role-based access", "resource-level permissions"]),
     );
   });
 

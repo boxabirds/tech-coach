@@ -17,9 +17,23 @@ if [ -z "$CLAUDE_BIN" ]; then
   exit 1
 fi
 
-if [ "$#" -gt 0 ]; then
-  REPOS="$*"
-else
+CLEAN=1
+REPOS=""
+for arg in "$@"; do
+  case "$arg" in
+    --clean)
+      CLEAN=1
+      ;;
+    --no-clean)
+      CLEAN=0
+      ;;
+    *)
+      REPOS="${REPOS}${REPOS:+ }$arg"
+      ;;
+  esac
+done
+
+if [ -z "$REPOS" ]; then
   REPOS="/Users/julian/expts/jp8 /Users/julian/expts/claude-backlog /Users/julian/expts/macscreencap"
 fi
 
@@ -56,6 +70,11 @@ for repo in $REPOS; do
   output="$RUN_DIR/$name.output.txt"
   echo "== $name =="
 
+  if [ "$CLEAN" = "1" ]; then
+    rm -rf "$repo/.ceetrix/tech-lead"
+    echo "   reset: $repo/.ceetrix/tech-lead"
+  fi
+
   (
     cd "$repo"
     "$CLAUDE_BIN" \
@@ -71,9 +90,16 @@ for repo in $REPOS; do
   assert_file "$repo/.ceetrix/tech-lead/next-actions.md"
   assert_file "$repo/.ceetrix/tech-lead/questions.json"
   assert_contains "$repo/.ceetrix/tech-lead/latest-assessment.md" "Observed Architecture Shape"
+  assert_contains "$repo/.ceetrix/tech-lead/latest-assessment.md" "Generated report from the repo-local Ceetrix Tech Lead SQLite store"
   assert_contains "$repo/.ceetrix/tech-lead/next-actions.md" "Next Actions"
   assert_not_contains "$output" "API Error"
   assert_not_contains "$output" "Invalid authentication"
+  assert_not_contains "$output" "exceeds maximum allowed tokens"
+  assert_not_contains "$output" "/tool-results/"
+  assert_not_contains "$output" "Brownfield assessment:"
+  assert_not_contains "$output" "Change assessment:"
+  assert_not_contains "$output" "Structure review:"
+  assert_not_contains "$output" "Horizon scan:"
 
   case "$name" in
     jp8)
@@ -83,8 +109,22 @@ for repo in $REPOS; do
       ;;
     claude-backlog)
       assert_contains "$repo/.ceetrix/tech-lead/latest-assessment.md" "apps/web"
-      assert_contains "$repo/.ceetrix/tech-lead/next-actions.md" "authentication/add_targeted_test_harness"
-      assert_contains "$repo/.ceetrix/tech-lead/next-actions.md" "deployment/add_targeted_test_harness"
+      assert_contains "$repo/.ceetrix/tech-lead/latest-assessment.md" "GitHub OAuth"
+      assert_contains "$repo/.ceetrix/tech-lead/latest-assessment.md" "Project membership and role boundaries"
+      assert_contains "$repo/.ceetrix/tech-lead/evidence.json" "normalizedFacts"
+      assert_contains "$repo/.ceetrix/tech-lead/evidence.json" "deployment.environment"
+      assert_contains "$repo/.ceetrix/tech-lead/evidence.json" "wrangler.toml.example"
+      assert_contains "$repo/.ceetrix/tech-lead/evidence.json" "docs/self-hosting.md"
+      assert_contains "$repo/.ceetrix/tech-lead/evidence.json" "docs/ops/staging.md"
+      assert_contains "$repo/.ceetrix/tech-lead/evidence.json" "scripts/deploy-production.sh"
+      assert_contains "$repo/.ceetrix/tech-lead/questions.json" "Which detected role, membership, or permission rule"
+      assert_contains "$repo/.ceetrix/tech-lead/questions.json" "Which environment is the primary release target"
+      assert_not_contains "$repo/.ceetrix/tech-lead/questions.json" "Should the coach assume no roles, admin-only controls, role-based access, or resource-level permissions"
+      assert_not_contains "$repo/.ceetrix/tech-lead/questions.json" "Should the coach assume local-only use, private hosting, public hosting, or production service deployment"
+      assert_not_contains "$repo/.ceetrix/tech-lead/questions.json" "What deployment model should this code assume"
+      assert_not_contains "$output" "Should the coach assume no roles, admin-only controls, role-based access, or resource-level permissions"
+      assert_not_contains "$output" "Should the coach assume local-only use, private hosting, public hosting, or production service deployment"
+      assert_contains "$repo/.ceetrix/tech-lead/latest-assessment.md" "Web users authenticate through GitHub OAuth"
       ;;
     macscreencap)
       assert_contains "$repo/.ceetrix/tech-lead/latest-assessment.md" "Swift/macOS"

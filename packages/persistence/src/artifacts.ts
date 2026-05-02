@@ -57,14 +57,21 @@ export function renderLatestAssessment(pack: LatestAssessmentPack): string {
   const lines = [
     "# Ceetrix Tech Lead Assessment",
     "",
+    "Generated report from the repo-local Ceetrix Tech Lead SQLite store.",
+    "The durable source of truth is the database recorded below; this Markdown file is a readable projection of the latest run.",
+    "",
     `Run: ${pack.run.runId}`,
     `Captured: ${pack.run.capturedAt}`,
     `Repository: ${pack.run.repoRoot}`,
+    `Store: ${pack.storePath}`,
     `Lifecycle: ${pack.run.lifecycleState}`,
     `Status: ${assessment.status}`,
     `Intervention: ${assessment.intervention}`,
     `Action: ${assessment.action}`,
     `Reason: ${assessment.reason}`,
+    "",
+    "## Architecture Claims",
+    ...claimLines(pack),
     "",
     "## Observed Architecture Shape",
     ...architectureShapeLines(pack),
@@ -113,6 +120,22 @@ function architectureShapeLines(pack: LatestAssessmentPack): string[] {
   );
 }
 
+function claimLines(pack: LatestAssessmentPack): string[] {
+  const claims = pack.run.assessment.claims ?? [];
+  if (claims.length === 0) {
+    return ["- No concrete architecture claims were inferred."];
+  }
+  return claims.flatMap((claim) => [
+    `- ${claim.concern} (${claim.confidence}): ${claim.claim}`,
+    ...(claim.evidence.length > 0
+      ? [`  Evidence: ${claim.evidence.slice(0, 4).join("; ")}`]
+      : []),
+    ...(claim.residualUnknowns.length > 0
+      ? [`  Remaining uncertainty: ${claim.residualUnknowns.join("; ")}`]
+      : []),
+  ]);
+}
+
 function renderQuestionState(pack: LatestAssessmentPack): Record<string, unknown> {
   return {
     runId: pack.run.runId,
@@ -136,6 +159,8 @@ function renderEvidence(pack: LatestAssessmentPack): Record<string, unknown> {
   return {
     runId: pack.run.runId,
     baseline: pack.run.assessment.baseline,
+    claims: pack.run.assessment.claims ?? [],
+    normalizedFacts: normalizedFactsFromPack(pack),
     evidenceByFamily: byFamily,
     diagnostics: [
       ...pack.run.diagnostics,
@@ -148,6 +173,33 @@ function renderEvidence(pack: LatestAssessmentPack): Record<string, unknown> {
   };
 }
 
+function normalizedFactsFromPack(pack: LatestAssessmentPack): unknown[] {
+  const signals = [
+    ...(pack.run.telemetry?.repository ?? []),
+    ...(pack.run.telemetry?.change ?? []),
+    ...(pack.run.telemetry?.test ?? []),
+    ...(pack.run.telemetry?.memory ?? []),
+    ...(pack.run.telemetry?.runtime ?? []),
+  ];
+  const facts = signals.flatMap((signal) => {
+    const details = "details" in signal.payload ? signal.payload.details : undefined;
+    return details && typeof details === "object" && !Array.isArray(details) && Array.isArray((details as { facts?: unknown[] }).facts)
+      ? (details as { facts: unknown[] }).facts
+      : [];
+  });
+  const seen = new Set<string>();
+  return facts.filter((fact) => {
+    const id = typeof fact === "object" && fact !== null && "id" in fact
+      ? String((fact as { id?: unknown }).id)
+      : JSON.stringify(fact);
+    if (seen.has(id)) {
+      return false;
+    }
+    seen.add(id);
+    return true;
+  });
+}
+
 function renderNextActions(pack: LatestAssessmentPack): string {
   return `${[
     "# Next Actions",
@@ -155,7 +207,7 @@ function renderNextActions(pack: LatestAssessmentPack): string {
     ...nextActionLines(pack),
     "",
     "## Blocked By Open Questions",
-    ...pack.openQuestions.map((question) => `- ${question.id}: ${question.prompt}`),
+    ...questionLines(pack.openQuestions),
     ...(pack.openQuestions.length === 0 ? ["- Nothing is blocked by open questions."] : []),
     "",
   ].join("\n")}\n`;
@@ -220,7 +272,8 @@ function questionLines(questions: LatestAssessmentPack["openQuestions"]): string
     return ["- No open questions."];
   }
   return questions.flatMap((question) => [
-    `- ${question.id}: ${question.prompt}`,
+    `- ${question.prompt}`,
+    `  Question id: ${question.id}`,
     `  Reason: ${question.reason}`,
   ]);
 }

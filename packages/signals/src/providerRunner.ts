@@ -29,6 +29,7 @@ export type OptionalProviderRunOptions = {
 const validCategories = new Set<EvidenceCategory>([
   "file_layout",
   "architecture_shape",
+  "architecture_claim",
   "changed_file_spread",
   "import_relationship",
   "symbol_reference",
@@ -212,6 +213,7 @@ export function familyForCategory(category: EvidenceCategory): Exclude<SignalFam
   switch (category) {
     case "file_layout":
     case "architecture_shape":
+    case "architecture_claim":
     case "configuration_boundary":
     case "history_interaction":
       return "repository";

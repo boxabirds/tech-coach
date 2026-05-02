@@ -7,6 +7,7 @@ import type {
   BaselineQuestion,
   BaselineUnknown,
 } from "./baselineTypes.js";
+import type { ArchitectureClaim } from "./claimTypes.js";
 import type {
   ArchitecturalTelemetryBundle,
   LifecycleSignal,
@@ -68,10 +69,13 @@ export function planBaselineInterviewQuestions(
     ...questionCandidatesFromFacts(input),
     ...questionCandidatesFromUnknowns(input),
     ...questionCandidatesFromTelemetry(input),
+    ...questionCandidatesFromClaims(input),
   ];
 
   const selected = new Map<string, QuestionCandidate>();
-  for (const candidate of candidates) {
+  for (const candidate of candidates.filter((candidate) =>
+    !isSuppressedByClaim(candidate, input.claims ?? [])
+  )) {
     const existing = selected.get(candidate.id);
     if (!existing || candidate.score > existing.score) {
       selected.set(candidate.id, candidate);
@@ -86,6 +90,72 @@ export function planBaselineInterviewQuestions(
     .map(({ score: _score, rankKey: _rankKey, ...question }) =>
       applyInteractionGuidance(question, interactionGuidance)
     );
+}
+
+function questionCandidatesFromClaims(
+  input: BaselineInterviewInput,
+): QuestionCandidate[] {
+  return (input.claims ?? [])
+    .filter((claim) => shouldAskAboutClaimResidual(claim))
+    .flatMap((claim, index) => claim.residualUnknowns.slice(0, 2).map((unknown, unknownIndex) => ({
+      id: stableQuestionId("claim", claim.concern, `${claim.id}-${unknownIndex}`),
+      concern: claim.concern,
+      kind: "choose" as const,
+      prompt: residualPromptForClaim(claim, unknown),
+      reason: `High-confidence claim still has residual uncertainty: ${claim.claim}`,
+      relatedFactIds: [],
+      relatedUnknownIds: [],
+      relatedSignalIds: claim.evidenceNodeIds,
+      options: residualOptionsForClaim(claim),
+      score: scoreClaimResidual(claim, index),
+      rankKey: `${concernPriority[claim.concern]}:${claim.id}:${unknownIndex}`,
+    })));
+}
+
+function scoreClaimResidual(claim: ArchitectureClaim, index: number): number {
+  return concernPriority[claim.concern]
+    + 35
+    + (isSecurityConcern(claim.concern) ? 20 : 0)
+    + (claim.concern === "deployment" ? 18 : 0)
+    - index;
+}
+
+function isSuppressedByClaim(
+  candidate: QuestionCandidate,
+  claims: ArchitectureClaim[],
+): boolean {
+  return claims.some((claim) =>
+    claim.concern === candidate.concern
+    && suppressesGenericQuestion(claim)
+    && (candidate.id.startsWith("question-unknown-") || candidate.id.startsWith("question-fact-"))
+  );
+}
+
+function shouldAskAboutClaimResidual(claim: ArchitectureClaim): boolean {
+  if (claim.residualUnknowns.length === 0) {
+    return false;
+  }
+  if (claim.confidence === "high") {
+    return true;
+  }
+  return isSecurityConcern(claim.concern)
+    && claim.confidence === "medium"
+    && hasConcreteSecurityEvidence(claim)
+    || claim.concern === "deployment"
+      && claim.confidence === "medium"
+      && hasConcreteDeploymentClaimEvidence(claim);
+}
+
+function suppressesGenericQuestion(claim: ArchitectureClaim): boolean {
+  if (claim.confidence === "high") {
+    return true;
+  }
+  return isSecurityConcern(claim.concern)
+    && claim.confidence === "medium"
+    && hasConcreteSecurityEvidence(claim)
+    || claim.concern === "deployment"
+      && claim.confidence === "medium"
+      && hasConcreteDeploymentClaimEvidence(claim);
 }
 
 export const baselineInterviewPlanner: BaselineInterviewPlanner = {
@@ -293,6 +363,12 @@ function applyInteractionGuidance(
 ): BaselineQuestion {
   if (!guidance) {
     return question;
+  }
+  if (question.id.startsWith("question-claim-")) {
+    return {
+      ...question,
+      interactionGuidance: guidance,
+    };
   }
 
   return {
@@ -642,6 +718,90 @@ function optionsForConcern(concern: ArchitectureConcern): string[] | undefined {
     default:
       return undefined;
   }
+}
+
+function residualPromptForClaim(claim: ArchitectureClaim, unknown: string): string {
+  switch (claim.concern) {
+    case "authentication":
+      return `${claim.claim} ${unknown}`;
+    case "authorization":
+      return `${claim.claim} ${unknown}`;
+    case "data_storage":
+      return `${claim.claim} ${unknown}`;
+    case "deployment":
+      return `${claim.claim} ${unknown}`;
+    default:
+      return `${claim.claim} ${unknown}`;
+  }
+}
+
+function residualOptionsForClaim(claim: ArchitectureClaim): string[] | undefined {
+  switch (claim.concern) {
+    case "authentication":
+      return ["production path", "CLI-only path", "legacy compatibility", "unknown"];
+    case "authorization":
+      return authorizationOptionsForClaim(claim);
+    case "data_storage":
+      return ["core workflow data", "audit/history data", "cache/session data", "unknown"];
+    case "deployment":
+      return ["production environment", "staging environment", "local development", "unknown"];
+    default:
+      return undefined;
+  }
+}
+
+function authorizationOptionsForClaim(claim: ArchitectureClaim): string[] {
+  const text = claimText(claim);
+  const options: string[] = [];
+  if (/(project|user[-_ ]?projects?|membership|member)/.test(text)) {
+    options.push("project membership roles");
+  }
+  if (/(resource|permission)/.test(text)) {
+    options.push("resource-level permissions");
+  }
+  if (/admin/.test(text)) {
+    options.push("admin-only controls");
+  }
+  if (/(api[-_ ]?key|token|credential)/.test(text)) {
+    options.push("API-key access boundary");
+  }
+  if (/session/.test(text)) {
+    options.push("session access boundary");
+  }
+  return [...new Set([...options, "unknown"])];
+}
+
+function hasConcreteSecurityEvidence(claim: ArchitectureClaim): boolean {
+  const text = claimText(claim);
+  if (claim.concern === "authorization") {
+    return /(membership|member|role|rbac|permission|user[-_ ]?projects?|admin|resource)/.test(text)
+      && /(\.test\.|tests?\/|migrations?\/|\.sql|src\/|workers\/|apps\/)/.test(text);
+  }
+  if (claim.concern === "authentication") {
+    return /(oauth|github|session|api[-_ ]?key|token|credential)/.test(text)
+      && /(\.test\.|tests?\/|src\/|workers\/|apps\/|scripts\/)/.test(text);
+  }
+  return false;
+}
+
+function hasConcreteDeploymentClaimEvidence(claim: ArchitectureClaim): boolean {
+  const text = claimText(claim);
+  return /(cloudflare|wrangler|worker|appcast|notari[sz]ation|signing)/.test(text)
+    && /(production|staging|local|preview|release)/.test(text)
+    && /(wrangler\.toml|\.github\/workflows|scripts\/deploy|docs\/|readme\.md|appcast\.xml)/.test(text);
+}
+
+function isSecurityConcern(concern: ArchitectureConcern): boolean {
+  return concern === "authentication" || concern === "authorization";
+}
+
+function claimText(claim: ArchitectureClaim): string {
+  return [
+    claim.subject,
+    claim.claim,
+    ...claim.evidence,
+    ...claim.residualUnknowns,
+  ].join(" ").toLowerCase();
 }
 
 function isConflictText(message: string): boolean {

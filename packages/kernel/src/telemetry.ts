@@ -517,6 +517,7 @@ function familyForCategory(category: string): Exclude<SignalFamily, "lifecycle" 
   switch (category) {
     case "file_layout":
     case "architecture_shape":
+    case "architecture_claim":
     case "configuration_boundary":
     case "history_interaction":
       return "repository";
@@ -601,6 +602,9 @@ function detailsFromOptionalEvidence(
   }
   if ("details" in signal && isRecord(signal.details)) {
     Object.assign(details, signal.details);
+  }
+  if ("facts" in signal && Array.isArray(signal.facts)) {
+    details.facts = signal.facts;
   }
   return Object.keys(details).length > 0 ? details : undefined;
 }

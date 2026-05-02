@@ -8,6 +8,7 @@ import type {
 import type { OptionalSignalResult } from "../../signals/src/index.js";
 import type { InteractionGuidance } from "../../signals/src/historyTypes.js";
 import type { ArchitecturalTelemetryBundle } from "./telemetryTypes.js";
+import type { ArchitectureClaim } from "./claimTypes.js";
 
 export type BaselineFactStatus =
   | "observed"
@@ -138,6 +139,7 @@ export type BaselineConfirmation = {
 export type BaselineInterviewInput = {
   baseline: ArchitectureBaseline;
   telemetry?: ArchitecturalTelemetryBundle;
+  claims?: ArchitectureClaim[];
 };
 
 export type BaselineAnswerMergeInput = {

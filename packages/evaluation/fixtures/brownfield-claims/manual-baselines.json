@@ -1,0 +1,134 @@
+{
+  "repositories": [
+    {
+      "name": "jp8",
+      "path": "/Users/julian/expts/jp8",
+      "requiredClaims": [
+        {
+          "concern": "package_boundary",
+          "claimContains": ["React", "Rust"],
+          "evidenceContains": ["src/App.tsx", "crates/jp8-core/Cargo.toml"]
+        },
+        {
+          "concern": "testing",
+          "claimContains": ["test"],
+          "evidenceContains": ["tests"]
+        }
+      ],
+      "forbiddenQuestions": [],
+      "forbiddenEvidence": [
+        "chrome_profile",
+        "Code Cache/"
+      ]
+    },
+    {
+      "name": "claude-backlog",
+      "path": "/Users/julian/expts/claude-backlog",
+      "requiredClaims": [
+        {
+          "concern": "authentication",
+          "claimContains": ["GitHub OAuth", "session"],
+          "evidenceContains": ["apps/web/src/pages/SignIn.tsx", "workers/taskmgr/src/auth/web-oauth.ts", "workers/taskmgr/src/auth/web-sessions.ts"]
+        },
+        {
+          "concern": "authentication",
+          "claimContains": ["Programmatic access", "credentials", "session"],
+          "evidenceContains": ["workers/taskmgr/src/auth/token-utils.ts", "workers/taskmgr/src/mcp/session.ts"]
+        },
+        {
+          "concern": "authorization",
+          "claimContains": ["Project membership", "role"],
+          "evidenceContains": ["workers/taskmgr/src/auth/membership.ts", "workers/taskmgr/migrations/0051_user_projects_role.sql"]
+        },
+        {
+          "concern": "data_storage",
+          "claimContains": ["D1", "relational"],
+          "evidenceContains": ["workers/taskmgr/migrations/0001_initial_schema.sql"]
+        },
+        {
+          "concern": "deployment",
+          "claimContains": ["Cloudflare", "Workers", "staging", "production"],
+          "evidenceContains": ["wrangler.toml.example", "docs/self-hosting.md", "docs/ops/staging.md", "scripts/deploy-production.sh"]
+        },
+        {
+          "concern": "package_boundary",
+          "claimContains": ["Package", "workspace"],
+          "evidenceContains": ["apps/web", "workers"]
+        }
+      ],
+      "requiredResidualQuestions": [
+        "API-key or MCP session authentication",
+        "Which detected role, membership, or permission rule",
+        "Which environment is the primary release target"
+      ],
+      "requiredFacts": [
+        {
+          "concern": "deployment",
+          "kindContains": "deployment.environment",
+          "summaryContains": "production",
+          "provenanceContains": "wrangler.toml.example"
+        },
+        {
+          "concern": "deployment",
+          "kindContains": "deployment.environment",
+          "summaryContains": "staging",
+          "provenanceContains": "docs/ops/staging.md"
+        },
+        {
+          "concern": "data_storage",
+          "kindContains": "binding.d1",
+          "provenanceContains": "wrangler.toml.example"
+        },
+        {
+          "concern": "authentication",
+          "kindContains": "auth.github_oauth",
+          "provenanceContains": "workers/taskmgr/src/auth/web-oauth.ts"
+        },
+        {
+          "concern": "authorization",
+          "kindContains": "authz.membership_role",
+          "provenanceContains": "workers/taskmgr/src/auth/membership.ts"
+        }
+      ],
+      "forbiddenQuestions": [
+        "Which identity boundary should the coach assume",
+        "What authentication boundary should the coach assume",
+        "Should the coach assume no roles, admin-only controls, role-based access, or resource-level permissions",
+        "What authorization or role boundary should the coach assume",
+        "Should the coach assume local-only use, private hosting, public hosting, or production service deployment",
+        "What deployment model should this code assume",
+        "Should the coach assume local-only use"
+      ],
+      "forbiddenEvidence": [
+        "chrome_profile",
+        "Code Cache/"
+      ]
+    },
+    {
+      "name": "macscreencap",
+      "path": "/Users/julian/expts/macscreencap",
+      "requiredClaims": [
+        {
+          "concern": "package_boundary",
+          "claimContains": ["Swift", "package"],
+          "evidenceContains": ["ScreencapMenuBar/Package.swift"]
+        },
+        {
+          "concern": "deployment",
+          "claimContains": ["Deployment"],
+          "evidenceContains": ["gh-pages/appcast.xml"]
+        },
+        {
+          "concern": "testing",
+          "claimContains": ["test"],
+          "evidenceContains": ["ScreencapMenuBar/tests"]
+        }
+      ],
+      "forbiddenQuestions": [],
+      "forbiddenEvidence": [
+        "chrome_profile",
+        "Code Cache/"
+      ]
+    }
+  ]
+}
