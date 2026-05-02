@@ -14,6 +14,11 @@ const generatedPathPatterns = [
   /^\.next\//,
   /^\.turbo\//,
   /^\.cache\//,
+  /(^|\/)chrome_profile\//,
+  /(^|\/)Code Cache\//,
+  /(^|\/)CacheStorage\//,
+  /(^|\/)GPUCache\//,
+  /(^|\/)Service Worker\//,
   /^target\//,
   /^pkg\/.*\.(js|d\.ts|wasm|map)$/i,
 ];

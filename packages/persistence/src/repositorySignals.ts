@@ -38,6 +38,11 @@ const ignoredDirs = new Set([
   ".next",
   ".turbo",
   ".cache",
+  "chrome_profile",
+  "Code Cache",
+  "CacheStorage",
+  "GPUCache",
+  "Service Worker",
   "target",
 ]);
 

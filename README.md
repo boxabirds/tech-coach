@@ -111,6 +111,26 @@ Useful options:
 /Users/julian/expts/architecture-guide/scripts/test-brownfield.sh --claude
 ```
 
+Run the full Claude Code plugin e2e against the three brownfield fixtures:
+
+```sh
+bun run test:claude-e2e
+```
+
+This loads the local Claude plugin from this checkout for
+`~/expts/jp8`, `~/expts/claude-backlog`, and `~/expts/macscreencap`, runs:
+
+```sh
+claude \
+  --plugin-dir /Users/julian/expts/architecture-guide \
+  --allowedTools "mcp__plugin_tech-coach_tech-coach__*" \
+  -p \
+  "/tech-coach:architecture-coach"
+```
+
+and asserts that the durable `.ceetrix/tech-lead/` assessment pack is created
+with repo-specific architectural signals.
+
 By default, the script is read-only for the target repo. It samples file layout,
 changed files, git history, optional transcript history, existing architecture
 memory, and optional Ceetrix history fixtures, then prints the coach's

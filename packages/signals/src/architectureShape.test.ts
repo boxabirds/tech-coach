@@ -60,6 +60,7 @@ describe("architectureShapeProvider", () => {
     const result = architectureShapeProvider.collect({
       ...baseContext,
       knownFiles: [
+        "docs/marketing/ops/data/verify-claims/chrome_profile/Default/Code Cache/wasm/index",
         "ScreencapMenuBar/Package.swift",
         "ScreencapMenuBar/Sources/EditorAppDelegate.swift",
         "ScreencapMenuBar/Sources/RecordingDocument.swift",
@@ -75,5 +76,7 @@ describe("architectureShapeProvider", () => {
       ]),
     );
     expect(result.evidence.join("\n")).not.toContain(".build");
+    expect(result.evidence.join("\n")).not.toContain("chrome_profile");
+    expect(result.evidence.join("\n")).not.toContain("WASM/package boundary markers");
   });
 });
