@@ -7,16 +7,15 @@ const baseline: BrownfieldClaimBaseline = {
   path: "/repo",
   requiredClaims: [{
     concern: "authentication",
-    claimContains: ["GitHub OAuth", "session"],
+    claimContains: ["external OAuth", "session"],
     evidenceContains: ["web-oauth.ts"],
   }, {
     concern: "authorization",
-    claimContains: ["Project membership", "role"],
+    claimContains: ["Membership", "role"],
     evidenceContains: ["membership.ts", "0051_user_projects_role.sql"],
   }],
   requiredResidualQuestions: [
-    "API-key or MCP session authentication",
-    "Which detected role, membership, or permission rule",
+    "Which access-control risk should the next test harness protect first",
   ],
   requiredFacts: [{
     concern: "authentication",
@@ -26,6 +25,8 @@ const baseline: BrownfieldClaimBaseline = {
   forbiddenQuestions: [
     "Which identity boundary should the coach assume",
     "Should the coach assume no roles, admin-only controls, role-based access, or resource-level permissions",
+    "API-key or MCP session authentication",
+    "production, CLI-only, or legacy",
   ],
   forbiddenEvidence: ["chrome_profile"],
 };
@@ -34,26 +35,17 @@ describe("claimComparator", () => {
   it("passes when claims, evidence, and residual questions match the manual baseline", () => {
     const result = compareClaims(baseline, {
       claims: [
-        claim("authentication", "Web users authenticate through GitHub OAuth with server-side session state.", ["workers/taskmgr/src/auth/web-oauth.ts"]),
-        claim("authorization", "Project membership and role boundaries are visible and should be treated as load-bearing authorization.", [
+        claim("authentication", "Web users authenticate through an external OAuth provider with server-side session state.", ["workers/taskmgr/src/auth/web-oauth.ts"]),
+        claim("authorization", "Membership and role boundaries are visible and should be treated as load-bearing authorization.", [
           "workers/taskmgr/src/auth/membership.ts",
           "workers/taskmgr/migrations/0051_user_projects_role.sql",
         ]),
       ],
       questions: [{
-        id: "q",
-        concern: "authentication",
-        kind: "choose",
-        prompt: "Whether API-key or MCP session authentication is production, CLI-only, or legacy.",
-        reason: "residual",
-        relatedFactIds: [],
-        relatedUnknownIds: [],
-        relatedSignalIds: [],
-      }, {
         id: "q-authz",
         concern: "authorization",
         kind: "choose",
-        prompt: "Which detected role, membership, or permission rule is load-bearing for the next test harness.",
+        prompt: "Which access-control risk should the next test harness protect first.",
         reason: "residual",
         relatedFactIds: [],
         relatedUnknownIds: [],
@@ -125,14 +117,14 @@ describe("claimComparator", () => {
 
   it("fails when noisy generated evidence supports a claim", () => {
     const result = compareClaims(baseline, {
-      claims: [claim("authentication", "Web users authenticate through GitHub OAuth with server-side session state.", [
+      claims: [claim("authentication", "Web users authenticate through an external OAuth provider with server-side session state.", [
         "docs/chrome_profile/Default/Code Cache/wasm/index",
       ])],
       questions: [{
         id: "q",
         concern: "authentication",
         kind: "choose",
-        prompt: "Whether API-key or MCP session authentication is production, CLI-only, or legacy.",
+        prompt: "Which access-control risk should the next test harness protect first.",
         reason: "residual",
         relatedFactIds: [],
         relatedUnknownIds: [],

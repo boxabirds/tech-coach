@@ -35,6 +35,37 @@ export type ThresholdCandidate =
   | "blast_radius"
   | "revisit";
 
+export type ComplexityPressureDriver =
+  | "repetition"
+  | "shared_state"
+  | "durable_state"
+  | "collaboration"
+  | "identity"
+  | "authorization"
+  | "public_access"
+  | "concurrency"
+  | "external_integration"
+  | "operational_runtime"
+  | "security_sensitive"
+  | "broad_change_surface"
+  | "revisit_pressure";
+
+export type ComplexityPressureLevel = "none" | "low" | "medium" | "high";
+export type StructuralSupportLevel =
+  | "absent"
+  | "localized"
+  | "named"
+  | "bounded"
+  | "contracted"
+  | "operationalized"
+  | "unknown";
+export type StructureAdequacyStatus =
+  | "adequate"
+  | "watch"
+  | "under_structured"
+  | "over_structured"
+  | "unknown";
+
 export type ArchitectureConcern =
   | "application_shape"
   | "package_boundary"
@@ -156,12 +187,45 @@ export type DecisionAxisAssessment = {
   planningHorizon: AxisScore;
 };
 
+export type ComplexityPressureAssessment = {
+  concern: ArchitectureConcern;
+  level: ComplexityPressureLevel;
+  drivers: ComplexityPressureDriver[];
+  evidenceRefs: string[];
+  confidence: BaselineConfidence;
+  provisional: boolean;
+  reason: string;
+};
+
+export type StructuralSupportAssessment = {
+  concern: ArchitectureConcern;
+  level: StructuralSupportLevel;
+  supports: string[];
+  evidenceRefs: string[];
+  confidence: BaselineConfidence;
+  reason: string;
+};
+
+export type StructureAdequacyAssessment = {
+  concern: ArchitectureConcern;
+  pressure: ComplexityPressureLevel;
+  support: StructuralSupportLevel;
+  status: StructureAdequacyStatus;
+  reason: string;
+  nextAction: string;
+  evidenceRefs: string[];
+  confidence: BaselineConfidence;
+};
+
 export type BaselineConcernAssessment = {
   concern: ArchitectureConcern;
   currentState: MaturityState;
   confidence: BaselineConfidence;
   axes: DecisionAxisAssessment;
   thresholdCandidates: ThresholdCandidate[];
+  pressure?: ComplexityPressureAssessment;
+  support?: StructuralSupportAssessment;
+  adequacy?: StructureAdequacyAssessment;
   facts: BaselineFact[];
   unknowns: BaselineUnknown[];
   rationale: string;

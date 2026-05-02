@@ -6,7 +6,7 @@
       "requiredClaims": [
         {
           "concern": "package_boundary",
-          "claimContains": ["React", "Rust"],
+          "claimContains": ["frontend", "runtime boundary"],
           "evidenceContains": ["src/App.tsx", "crates/jp8-core/Cargo.toml"]
         },
         {
@@ -27,7 +27,7 @@
       "requiredClaims": [
         {
           "concern": "authentication",
-          "claimContains": ["GitHub OAuth", "session"],
+          "claimContains": ["external OAuth", "session"],
           "evidenceContains": ["apps/web/src/pages/SignIn.tsx", "workers/taskmgr/src/auth/web-oauth.ts", "workers/taskmgr/src/auth/web-sessions.ts"]
         },
         {
@@ -37,17 +37,17 @@
         },
         {
           "concern": "authorization",
-          "claimContains": ["Project membership", "role"],
+          "claimContains": ["Membership", "role"],
           "evidenceContains": ["workers/taskmgr/src/auth/membership.ts", "workers/taskmgr/migrations/0051_user_projects_role.sql"]
         },
         {
           "concern": "data_storage",
-          "claimContains": ["D1", "relational"],
+          "claimContains": ["relational"],
           "evidenceContains": ["workers/taskmgr/migrations/0001_initial_schema.sql"]
         },
         {
           "concern": "deployment",
-          "claimContains": ["Cloudflare", "Workers", "staging", "production"],
+          "claimContains": ["Deployment evidence", "staging", "production"],
           "evidenceContains": ["wrangler.toml.example", "docs/self-hosting.md", "docs/ops/staging.md", "scripts/deploy-production.sh"]
         },
         {
@@ -57,9 +57,8 @@
         }
       ],
       "requiredResidualQuestions": [
-        "API-key or MCP session authentication",
-        "Which detected role, membership, or permission rule",
-        "Which environment is the primary release target"
+        "Which access-control risk should the next test harness protect first",
+        "Which rollout risk should guide the next operational check"
       ],
       "requiredFacts": [
         {
@@ -97,7 +96,11 @@
         "What authorization or role boundary should the coach assume",
         "Should the coach assume local-only use, private hosting, public hosting, or production service deployment",
         "What deployment model should this code assume",
-        "Should the coach assume local-only use"
+        "Should the coach assume local-only use",
+        "API-key or MCP session authentication",
+        "production, CLI-only, or legacy",
+        "Which detected role, membership, or permission rule",
+        "Which environment is the primary release target"
       ],
       "forbiddenEvidence": [
         "chrome_profile",
@@ -110,7 +113,7 @@
       "requiredClaims": [
         {
           "concern": "package_boundary",
-          "claimContains": ["Swift", "package"],
+          "claimContains": ["Application package", "boundaries"],
           "evidenceContains": ["ScreencapMenuBar/Package.swift"]
         },
         {

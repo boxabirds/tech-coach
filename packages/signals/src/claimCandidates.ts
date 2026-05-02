@@ -46,13 +46,13 @@ const candidateRules: CandidateRule[] = [
     family: "session",
     concern: "authentication",
     label: "server-side session",
-    patterns: [/sessions?\.[cm]?[jt]s$/i, /SESSION_KV/i, /web-sessions/i],
+    patterns: [/sessions?\.[cm]?[jt]s$/i, /SESSION_KV/i, /(^|[-_/])sessions?[-_.]/i],
   },
   {
     family: "credential",
     concern: "authentication",
     label: "API key or token authentication",
-    patterns: [/api[-_]?keys?/i, /token-utils/i, /legacy-token/i],
+    patterns: [/api[-_]?keys?/i, /tokens?/i, /credentials?/i, /bearer/i],
   },
   {
     family: "session",
@@ -64,7 +64,7 @@ const candidateRules: CandidateRule[] = [
     family: "authorization",
     concern: "authorization",
     label: "role or membership boundary",
-    patterns: [/membership/i, /permissions?/i, /roles?/i, /rbac/i, /user[-_]projects/i],
+    patterns: [/membership/i, /permissions?/i, /roles?/i, /rbac/i, /access[-_]?control/i],
   },
   {
     family: "schema",
@@ -171,7 +171,7 @@ function pathRank(path: string): number {
   let rank = 0;
   if (/\/src\//.test(path)) rank -= 40;
   if (/\/Sources\//.test(path)) rank -= 40;
-  if (/web-oauth|web-sessions|SignIn|session\.ts|token-utils|membership|wrangler|Package\.swift|Cargo\.toml/.test(path)) {
+  if (/(auth|oauth|login|signin|session|credential|token|membership|permission|role|rbac|deploy|wrangler|package\.swift|cargo\.toml)/i.test(path)) {
     rank -= 30;
   }
   if (/\/tests?\//.test(path) || /\.(test|spec)\./.test(path)) rank += 20;

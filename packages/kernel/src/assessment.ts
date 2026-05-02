@@ -3,6 +3,7 @@ import {
   type ArchitectureBaseline,
   type ArchitectureConcern,
   type BaselineQuestion,
+  type StructureAdequacyAssessment,
 } from "./baselineTypes.js";
 import { planBaselineInterviewQuestions } from "./baselineInterview.js";
 import { claimsForTelemetry } from "./claims.js";
@@ -33,6 +34,10 @@ import {
   selectArchitecturePolicy,
   type ArchitecturePolicyDecision,
 } from "./policy.js";
+import {
+  debtAssessmentFor,
+  type ArchitectureDebtAssessment,
+} from "./complexity.js";
 import type {
   ArchitecturalTelemetryBundle,
   SignalEnvelope,
@@ -63,6 +68,8 @@ export type AssessmentResult = {
   revisitAlerts: RevisitAlert[];
   principleGuidance: PrincipleGuidance[];
   policy?: ArchitecturePolicyDecision;
+  structureReasoning?: StructureAdequacyAssessment[];
+  architectureDebt?: ArchitectureDebtAssessment[];
 };
 
 export type AssessmentInput = {
@@ -128,6 +135,10 @@ export function assessArchitecture(input: AssessmentInput): AssessmentResult {
     revisitAlerts,
     principleGuidance,
   });
+  const structureReasoning = baseline.concerns
+    .map((concern) => concern.adequacy)
+    .filter((adequacy): adequacy is StructureAdequacyAssessment => Boolean(adequacy));
+  const architectureDebt = buildArchitectureDebt(structureReasoning, normalized.memoryRecords);
 
   return {
     status: policy.selected.intervention === "silent" || policy.selected.action === "Continue"
@@ -136,7 +147,7 @@ export function assessArchitecture(input: AssessmentInput): AssessmentResult {
     intervention: policy.selected.intervention,
     action: policy.selected.action,
     reason: policy.selected.reason,
-    evidence: buildEvidence(normalized.telemetry, baseline, revisitAlerts),
+    evidence: buildEvidence(normalized.telemetry, baseline, revisitAlerts, structureReasoning),
     doNotAdd: doNotAddGuidance(baseline, policy.selected),
     memory: {
       status: normalized.memoryRecords.length > 0 ? "loaded" : "absent",
@@ -148,6 +159,8 @@ export function assessArchitecture(input: AssessmentInput): AssessmentResult {
     revisitAlerts,
     principleGuidance,
     policy,
+    structureReasoning,
+    architectureDebt,
   };
 }
 
@@ -251,6 +264,7 @@ function buildEvidence(
   telemetry: ArchitecturalTelemetryBundle,
   baseline: ArchitectureBaseline,
   alerts: RevisitAlert[],
+  structureReasoning: StructureAdequacyAssessment[],
 ): AssessmentEvidence[] {
   const evidence: AssessmentEvidence[] = [];
   for (const alert of alerts) {
@@ -273,7 +287,52 @@ function buildEvidence(
     });
   }
 
+  for (const adequacy of visibleAdequacyEvidence(structureReasoning)) {
+    evidence.push({
+      family: "complexity",
+      source: `adequacy-${adequacy.concern}`,
+      category: adequacy.concern,
+      summary: `${adequacy.status}: ${adequacy.reason} Next action: ${adequacy.nextAction}.`,
+    });
+  }
+
   return dedupeEvidence(evidence).slice(0, 12);
+}
+
+function visibleAdequacyEvidence(
+  structureReasoning: StructureAdequacyAssessment[],
+): StructureAdequacyAssessment[] {
+  return structureReasoning
+    .filter((item) =>
+      item.status === "under_structured"
+      || item.status === "over_structured"
+      || item.status === "watch"
+    )
+    .slice(0, 4);
+}
+
+function buildArchitectureDebt(
+  adequacy: StructureAdequacyAssessment[],
+  records: DecisionRecord[],
+): ArchitectureDebtAssessment[] {
+  const results: ArchitectureDebtAssessment[] = [];
+  for (const item of adequacy) {
+    if (item.status !== "under_structured") {
+      continue;
+    }
+    const accepted = records.find((record) =>
+      concernMatches(record.concern, item.concern)
+      && record.revisitIf.length > 0
+    );
+    results.push(debtAssessmentFor({
+      adequacy: item,
+      accepted: Boolean(accepted),
+      rationale: accepted?.reason,
+      acceptedRisk: accepted?.risks.join("; "),
+      revisitIf: accepted?.revisitIf,
+    }));
+  }
+  return results;
 }
 
 function evidenceFromSignal(signal: SignalEnvelope<unknown>): AssessmentEvidence {
@@ -372,4 +431,28 @@ function isTelemetryBundle(value: unknown): value is ArchitecturalTelemetryBundl
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function concernMatches(recordConcern: string, concern: ArchitectureConcern): boolean {
+  const normalized = recordConcern.toLowerCase();
+  switch (concern) {
+    case "data_storage":
+      return containsAny(normalized, ["storage", "persistence", "database"]);
+    case "state_ownership":
+      return containsAny(normalized, ["state", "ownership"]);
+    case "authentication":
+      return containsAny(normalized, ["auth", "identity", "login", "session"]);
+    case "authorization":
+      return containsAny(normalized, ["authorization", "permission", "role", "access"]);
+    case "api_contract":
+      return containsAny(normalized, ["api", "contract"]);
+    case "deployment":
+      return containsAny(normalized, ["deploy", "hosting", "production"]);
+    default:
+      return normalized.includes(concern);
+  }
+}
+
+function containsAny(value: string, needles: string[]): boolean {
+  return needles.some((needle) => value.includes(needle));
 }

@@ -9,7 +9,7 @@ import type { CoachEventEnvelope } from "./protocol.js";
 import type { ArchitectureEvidenceFact } from "./claimTypes.js";
 
 describe("architecture claims", () => {
-  it("infers high-confidence GitHub OAuth plus server-side session claims from corroborated evidence", () => {
+  it("infers high-confidence external OAuth plus server-side session claims from corroborated evidence", () => {
     const telemetry = telemetryFromEvidence({
       event: eventWithEvidence([
         "authentication.route: authentication route: apps/web/src/pages/SignIn.tsx",
@@ -30,7 +30,7 @@ describe("architecture claims", () => {
         expect.objectContaining({
           concern: "authentication",
           confidence: "high",
-          claim: expect.stringContaining("GitHub OAuth"),
+          claim: expect.stringContaining("external OAuth provider"),
         }),
       ]),
     );
@@ -62,9 +62,9 @@ describe("architecture claims", () => {
         expect.objectContaining({
           concern: "authorization",
           confidence: "high",
-          claim: "Project membership and role boundaries are visible and should be treated as load-bearing authorization.",
+          claim: "Membership and role boundaries are visible and should be treated as load-bearing authorization.",
           residualUnknowns: [
-            "Which detected role, membership, or permission rule is load-bearing for the next test harness.",
+            "Which access-control risk should the next test harness protect first.",
           ],
         }),
       ]),
@@ -125,10 +125,10 @@ describe("architecture claims", () => {
     expect(result.questions.map((question) => question.prompt).join("\n"))
       .not.toContain("Which identity boundary should the coach assume");
     expect(result.questions.map((question) => question.prompt).join("\n"))
-      .toContain("API-key or MCP session authentication");
+      .not.toContain("API-key or MCP session authentication");
   });
 
-  it("asks grounded authorization questions instead of broad taxonomy questions when authz evidence exists", () => {
+  it("asks future-risk authorization questions instead of broad taxonomy questions when authz evidence exists", () => {
     const result = assessArchitecture({
       event: eventWithEvidence([
         "authentication.route: authentication route: apps/web/src/pages/SignIn.tsx",
@@ -144,13 +144,13 @@ describe("architecture claims", () => {
         expect.objectContaining({
           concern: "authorization",
           confidence: "high",
-          claim: expect.stringContaining("Project membership and role boundaries"),
+          claim: expect.stringContaining("Membership and role boundaries"),
         }),
       ]),
     );
-    expect(prompts).toContain("Project membership and role boundaries");
-    expect(prompts).toContain("Which detected role, membership, or permission rule");
+    expect(prompts).toContain("Which access-control risk should the next test harness protect first");
     expect(prompts).not.toContain("Should the coach assume no roles, admin-only controls, role-based access, or resource-level permissions?");
+    expect(prompts).not.toContain("workers/taskmgr");
   });
 
   it("promotes normalized config, doc, and code facts into concrete deployment claims", () => {
@@ -169,7 +169,7 @@ describe("architecture claims", () => {
         expect.objectContaining({
           concern: "deployment",
           confidence: "high",
-          claim: expect.stringContaining("Cloudflare Workers"),
+          claim: expect.stringContaining("Deployment evidence includes"),
         }),
       ]),
     );
@@ -180,7 +180,7 @@ describe("architecture claims", () => {
         "scripts/deploy-production.sh",
       ]),
     );
-    expect(prompts).toContain("Which environment is the primary release target");
+    expect(prompts).toContain("Which rollout risk should guide the next operational check");
     expect(prompts).not.toContain("Should the coach assume local-only use, private hosting, public hosting, or production service deployment");
   });
 });

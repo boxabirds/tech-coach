@@ -207,12 +207,12 @@ describe("persistence E2E workflows", () => {
         expect.arrayContaining([
           expect.objectContaining({
             type: "claim",
-            summary: expect.stringContaining("GitHub OAuth"),
+            summary: expect.stringContaining("external OAuth"),
           }),
         ]),
       );
 
-      const claim = claims.items.find((item) => item.summary.includes("GitHub OAuth"))!;
+      const claim = claims.items.find((item) => item.summary.includes("external OAuth"))!;
       const detail = await callMcp<NodeDetail>("architecture.get_assessment_node", {
         cwd: repo,
         runId: index!.runId,

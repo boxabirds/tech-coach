@@ -31,6 +31,7 @@ import {
 } from "./baselineConfidence.js";
 import type { OptionalSignalResult } from "../../signals/src/index.js";
 import { evidenceFromTelemetry } from "./telemetry.js";
+import { assessConcernComplexity } from "./complexity.js";
 
 type NormalizedEvidence = {
   source: string;
@@ -611,7 +612,7 @@ function buildConcernAssessments(
       draft,
       priorDecisions,
     );
-    return {
+    const assessment: BaselineConcernAssessment = {
       concern,
       currentState,
       confidence,
@@ -620,6 +621,13 @@ function buildConcernAssessments(
       facts: concernFacts,
       unknowns: concernUnknowns,
       rationale: buildRationale(concern, currentState, concernFacts, concernUnknowns),
+    };
+    const complexity = assessConcernComplexity(assessment);
+    return {
+      ...assessment,
+      pressure: complexity.pressure,
+      support: complexity.support,
+      adequacy: complexity.adequacy,
     };
   });
 }

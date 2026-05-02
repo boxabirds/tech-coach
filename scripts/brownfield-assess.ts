@@ -68,6 +68,7 @@ const ignoredDirs = new Set([
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const repo = resolve(args.repo);
+  const codeIntelCommand = args.codeIntelCommand ?? defaultCodeIntelligenceCommand();
   if (!existsSync(repo) || !statSync(repo).isDirectory()) {
     throw new Error(`Repository path does not exist or is not a directory: ${repo}`);
   }
@@ -93,13 +94,11 @@ async function main(): Promise<void> {
       gitDiffProvider,
       configBoundaryProvider,
       diagnosticsProvider,
-      ...(args.codeIntelCommand
-        ? [codeIntelligenceProvider({
-          command: args.codeIntelCommand,
-          args: args.codeIntelArgs,
-          timeoutMs: 30_000,
-        })]
-        : []),
+      codeIntelligenceProvider({
+        command: codeIntelCommand,
+        args: args.codeIntelArgs,
+        timeoutMs: 30_000,
+      }),
     ],
     {
       capturedAt: new Date().toISOString(),
@@ -591,6 +590,10 @@ function pluginRoot(): string {
   return resolve(dirname(fileURLToPath(import.meta.url)), "..");
 }
 
+function defaultCodeIntelligenceCommand(): string {
+  return resolve(pluginRoot(), "scripts/complexity-to-code-intel.ts");
+}
+
 function requiredValue(argv: string[], index: number, flag: string): string {
   const value = argv[index];
   if (!value || value.startsWith("--")) {
@@ -617,7 +620,7 @@ function printUsage(): void {
     "  --ceetrix-history <path>    Optional JSON/JSONL Ceetrix history fixture.",
     "  --max-files <n>             Maximum repository files to sample. Default: 1200.",
     "  --max-records <n>           Maximum history records to inspect. Default: 100.",
-    "  --code-intel-command <cmd>  Optional code intelligence JSON producer.",
+    "  --code-intel-command <cmd>  Required code intelligence JSON producer. Defaults to this repo's Rust tree-sitter adapter.",
     "  --code-intel-arg <arg>      Argument for the code intelligence producer. Repeatable.",
     "  --direct                    Bypass MCP and call the kernel directly.",
     "  --capture                   Write the repo-local .ceetrix/tech-lead assessment pack.",

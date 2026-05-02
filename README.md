@@ -58,7 +58,7 @@ The plugin exposes:
 
 - `skills/architecture-coach/SKILL.md` for host-mediated interview workflow
 - `.mcp.json` for the local `tech-coach` MCP server
-- `bin/archcoach` for CLI fallback assessment
+- `bin/archcoach` for CLI assessment
 - `bin/archcoach-mcp` for MCP stdio launch
 - `.claude-plugin/plugin.json` for Claude Code user configuration
 
@@ -167,10 +167,11 @@ local `bin/archcoach-mcp` server, so it tests the MCP path rather than only the
 kernel. Use `--direct` only when you deliberately want to bypass MCP while
 debugging.
 
-`scripts/complexity-to-code-intel.ts` is an adapter for the Rust tree-sitter
-complexity analyzer. It emits the generic `tech-coach.code-intelligence.v1`
-schema so parser output remains an optional producer, not a hard dependency of
-the coach.
+`scripts/complexity-to-code-intel.ts` is the adapter for the required Rust
+tree-sitter complexity analyzer. It emits the generic
+`tech-coach.code-intelligence.v1` schema. Brownfield capture requires this
+structured code-intelligence producer; missing parser tooling is a configuration
+or build error, not a heuristic fallback path.
 
 ## Test Persistence
 

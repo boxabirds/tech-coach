@@ -75,6 +75,7 @@ export function planBaselineInterviewQuestions(
   const selected = new Map<string, QuestionCandidate>();
   for (const candidate of candidates.filter((candidate) =>
     !isSuppressedByClaim(candidate, input.claims ?? [])
+    && isAskableUserIntentQuestion(candidate)
   )) {
     const existing = selected.get(candidate.id);
     if (!existing || candidate.score > existing.score) {
@@ -96,13 +97,12 @@ function questionCandidatesFromClaims(
   input: BaselineInterviewInput,
 ): QuestionCandidate[] {
   return (input.claims ?? [])
-    .filter((claim) => shouldAskAboutClaimResidual(claim))
-    .flatMap((claim, index) => claim.residualUnknowns.slice(0, 2).map((unknown, unknownIndex) => ({
+    .flatMap((claim, index) => askableClaimResiduals(claim).slice(0, 2).map((unknown, unknownIndex) => ({
       id: stableQuestionId("claim", claim.concern, `${claim.id}-${unknownIndex}`),
       concern: claim.concern,
       kind: "choose" as const,
       prompt: residualPromptForClaim(claim, unknown),
-      reason: `High-confidence claim still has residual uncertainty: ${claim.claim}`,
+      reason: "Repository evidence answers the current shape; this asks which future risk or direction should drive the next architecture move.",
       relatedFactIds: [],
       relatedUnknownIds: [],
       relatedSignalIds: claim.evidenceNodeIds,
@@ -110,6 +110,17 @@ function questionCandidatesFromClaims(
       score: scoreClaimResidual(claim, index),
       rankKey: `${concernPriority[claim.concern]}:${claim.id}:${unknownIndex}`,
     })));
+}
+
+function askableClaimResiduals(claim: ArchitectureClaim): string[] {
+  if (!shouldAskAboutClaimResidual(claim)) {
+    return [];
+  }
+  return claim.residualUnknowns.filter((unknown) =>
+    isFutureIntentText(unknown)
+    && !hasCurrentStateInterviewText(unknown)
+    && !hasWrongAbstractionLevelText(unknown)
+  );
 }
 
 function scoreClaimResidual(claim: ArchitectureClaim, index: number): number {
@@ -189,25 +200,8 @@ function questionCandidatesFromFacts(
 function questionCandidatesFromUnknowns(
   input: BaselineInterviewInput,
 ): QuestionCandidate[] {
-  if (input.baseline.facts.length === 0) {
-    return [];
-  }
-
-  return input.baseline.unknowns
-    .filter((unknown) => isHighImpactConcern(unknown.concern))
-    .map((unknown) => ({
-      id: stableQuestionId("unknown", unknown.concern, unknown.id),
-      concern: unknown.concern,
-      kind: "choose",
-      prompt: promptForUnknown(unknown),
-      reason: `The baseline has project evidence, but ${unknown.concern} is still unresolved: ${unknown.reason}`,
-      relatedFactIds: [],
-      relatedUnknownIds: [unknown.id],
-      relatedSignalIds: [],
-      options: optionsForConcern(unknown.concern),
-      score: concernPriority[unknown.concern] + 10,
-      rankKey: `${concernPriority[unknown.concern]}:${unknown.id}`,
-    }));
+  void input;
+  return [];
 }
 
 function questionCandidatesFromTelemetry(
@@ -407,7 +401,7 @@ function guidedPrompt(
 function storagePromptForStyle(style: QuestionStyle, fallback: string): string {
   switch (style) {
     case "technical_choice":
-      return "Do you want the coach to assume SQL/relational storage, document/NoSQL storage, or local-only storage for now?";
+      return "Which storage outcome should guide the next architecture move: local-only speed, durable single-user data, collaboration, audit/compliance, or migration safety?";
     case "business_outcome":
       return "What user outcome should storage support next: search, sharing, export, audit, deletion, or offline use?";
     case "risk_compliance":
@@ -420,7 +414,7 @@ function storagePromptForStyle(style: QuestionStyle, fallback: string): string {
 function authPromptForStyle(style: QuestionStyle, fallback: string): string {
   switch (style) {
     case "technical_choice":
-      return "Which identity boundary should the coach assume: no auth, local-only user, session login, or external identity provider?";
+      return "Which access surface should guide the next security review: web sessions, programmatic credentials, external identity, or no authentication work planned?";
     case "business_outcome":
       return "Who needs access to this system next, and what should they be able to do?";
     case "risk_compliance":
@@ -433,7 +427,7 @@ function authPromptForStyle(style: QuestionStyle, fallback: string): string {
 function authorizationPromptForStyle(style: QuestionStyle, fallback: string): string {
   switch (style) {
     case "technical_choice":
-      return "Should the coach assume no roles, admin-only controls, role-based access, or resource-level permissions?";
+      return "Which access boundary should the next test or review protect: admin actions, role or membership rules, resource permissions, or no authorization work planned?";
     case "business_outcome":
       return "Which user groups or workflows need different access rules?";
     case "risk_compliance":
@@ -446,7 +440,7 @@ function authorizationPromptForStyle(style: QuestionStyle, fallback: string): st
 function deploymentPromptForStyle(style: QuestionStyle, fallback: string): string {
   switch (style) {
     case "technical_choice":
-      return "Should the coach assume local-only use, private hosting, public hosting, or production service deployment?";
+      return "Which rollout target should guide this change: local development, private preview, public launch, or production hardening?";
     case "business_outcome":
       return "Who needs to use this outside your machine, and how reliable does access need to be?";
     case "risk_compliance":
@@ -459,7 +453,7 @@ function deploymentPromptForStyle(style: QuestionStyle, fallback: string): strin
 function apiPromptForStyle(style: QuestionStyle, fallback: string): string {
   switch (style) {
     case "technical_choice":
-      return "Should the coach treat this API as internal only, stable internal, public, or depended on by external systems?";
+      return "Which API stability goal should guide the next architecture move: internal flexibility, stable internal contract, public API, or partner dependency?";
     case "business_outcome":
       return "Which product or partner workflow needs this API to remain stable?";
     case "risk_compliance":
@@ -472,7 +466,7 @@ function apiPromptForStyle(style: QuestionStyle, fallback: string): string {
 function statePromptForStyle(style: QuestionStyle, fallback: string): string {
   switch (style) {
     case "technical_choice":
-      return "Should the coach assume this state is component-local, shared client state, server-owned, or persistent workflow state?";
+      return "Which state ownership risk should guide the next architecture move: component churn, shared client coordination, server authority, or persistent workflow recovery?";
     case "business_outcome":
       return "Which user workflow should state changes protect from being lost or inconsistent?";
     case "risk_compliance":
@@ -485,7 +479,7 @@ function statePromptForStyle(style: QuestionStyle, fallback: string): string {
 function testingPromptForStyle(style: QuestionStyle, fallback: string): string {
   switch (style) {
     case "technical_choice":
-      return "What test level should the coach trust here: unit, integration, end-to-end, manual verification, or none yet?";
+      return "Which test gap should the next architecture move close: unit behavior, integration boundary, end-to-end workflow, or release confidence?";
     case "business_outcome":
       return "Which user workflow would be most costly if this change broke?";
     case "risk_compliance":
@@ -498,7 +492,7 @@ function testingPromptForStyle(style: QuestionStyle, fallback: string): string {
 function observabilityPromptForStyle(style: QuestionStyle, fallback: string): string {
   switch (style) {
     case "technical_choice":
-      return "What runtime evidence should the coach trust: logs, metrics, traces, health checks, alerts, or manual reports?";
+      return "Which runtime feedback should the next architecture move improve: logs, metrics, traces, health checks, alerts, or incident review?";
     case "business_outcome":
       return "Which user-visible failure would you need to detect quickly?";
     case "risk_compliance":
@@ -618,48 +612,48 @@ function questionKindForFact(fact: BaselineFact): BaselineQuestion["kind"] {
 function promptForFact(fact: BaselineFact): string {
   switch (fact.concern) {
     case "data_storage":
-      return `Should the coach treat this persistence finding as intentional project direction: ${fact.summary}`;
+      return "Which future storage risk should this evidence influence?";
     case "authentication":
-      return `Should the coach treat this authentication boundary as real project intent: ${fact.summary}`;
+      return "Which future security review should this authentication evidence influence?";
     case "authorization":
-      return `Should the coach treat this authorization boundary as real project intent: ${fact.summary}`;
+      return "Which future access-control risk should this authorization evidence influence?";
     case "deployment":
-      return `Should the coach treat this deployment expectation as real project intent: ${fact.summary}`;
+      return "Which future rollout or operations risk should this deployment evidence influence?";
     case "api_contract":
-      return `Should the coach treat this API contract as load-bearing project intent: ${fact.summary}`;
+      return "Which future compatibility risk should this API evidence influence?";
     case "state_ownership":
-      return `Should the coach treat this state ownership pressure as important project direction: ${fact.summary}`;
+      return "Which future state ownership risk should this evidence influence?";
     case "risk_hotspot":
-      return `Should the coach treat this risk hotspot as an active constraint: ${fact.summary}`;
+      return "Which future risk should this hotspot influence?";
     case "testing":
-      return `Should the coach treat this test posture as current and reliable: ${fact.summary}`;
+      return "Which future test investment should this evidence influence?";
     case "observability":
-      return `Should the coach treat this runtime or observability signal as current project reality: ${fact.summary}`;
+      return "Which future runtime feedback risk should this evidence influence?";
     default:
-      return `Should the coach treat this baseline fact as project intent: ${fact.summary}`;
+      return "Which future architecture move should this evidence influence?";
   }
 }
 
 function promptForUnknown(unknown: BaselineUnknown): string {
   switch (unknown.concern) {
     case "data_storage":
-      return "What persistence model should the coach assume for this project right now?";
+      return "Which future persistence risk should the coach prioritize?";
     case "authentication":
-      return "What authentication boundary should the coach assume for this project right now?";
+      return "Which future authentication risk should the coach prioritize?";
     case "authorization":
-      return "What authorization or role boundary should the coach assume for this project right now?";
+      return "Which future authorization risk should the coach prioritize?";
     case "deployment":
-      return "What deployment target or sharing expectation should the coach assume right now?";
+      return "Which future deployment or sharing risk should the coach prioritize?";
     case "api_contract":
       return "Are any APIs in this project intended to become public or externally depended on?";
     case "state_ownership":
-      return "Where should the coach assume important shared state is owned right now?";
+      return "Which future state ownership risk should the coach prioritize?";
     case "testing":
-      return "What test posture should the coach treat as current for this project?";
+      return "Which future test gap should the coach prioritize?";
     case "observability":
-      return "What runtime feedback should the coach assume is available for this project?";
+      return "Which future runtime feedback risk should the coach prioritize?";
     default:
-      return `What should the coach assume about ${unknown.concern} right now?`;
+      return `Which future architecture risk should the coach prioritize for ${unknown.concern}?`;
   }
 }
 
@@ -669,19 +663,19 @@ function promptForSignalFamily(
 ): string {
   switch (family) {
     case "repository":
-      return "The repository signal is incomplete. What project structure should the coach assume?";
+      return "The repository signal is incomplete. Which future architecture risk should the coach be careful not to miss?";
     case "change":
       return "The change signal is incomplete or conflicting. What part of this change is architecturally important?";
     case "test":
-      return "The test signal is incomplete or stale. What test evidence should the coach trust?";
+      return "The test signal is incomplete or stale. Which future regression would be most costly to miss?";
     case "memory":
       return "The decision memory signal is incomplete. Are there known shortcuts or prior decisions the coach should respect?";
     case "runtime":
-      return "The runtime signal is incomplete or failing. What operational evidence should the coach consider current?";
+      return "The runtime signal is incomplete or failing. Which future operational failure should the coach prioritize?";
     case "lifecycle":
-      return "The host lifecycle signal is incomplete. What current work context should the coach assume?";
+      return "The host lifecycle signal is incomplete. Which future architecture decision is this work trying to support?";
     default:
-      return `What should the coach assume about ${concern} right now?`;
+      return `Which future architecture risk should the coach prioritize for ${concern}?`;
   }
 }
 
@@ -702,13 +696,13 @@ function reasonForFact(
 function optionsForConcern(concern: ArchitectureConcern): string[] | undefined {
   switch (concern) {
     case "data_storage":
-      return ["temporary local-only storage", "durable single-user storage", "shared multi-user database", "unknown"];
+      return ["local-only speed", "durable single-user data", "shared collaboration data", "audit or compliance data", "migration safety"];
     case "authentication":
-      return ["no authentication yet", "single-user local assumption", "session/account login", "external identity provider", "unknown"];
+      return ["web sessions", "programmatic credentials", "external identity", "session hardening", "no authentication work planned"];
     case "authorization":
-      return ["no roles yet", "admin-only controls", "role-based access", "resource-level permissions", "unknown"];
+      return ["admin actions", "role or membership rules", "resource permissions", "API access boundary", "no authorization work planned"];
     case "deployment":
-      return ["local only", "private hosted app", "public hosted app", "production service", "unknown"];
+      return ["local development", "private preview", "public launch", "production hardening", "rollback readiness"];
     case "api_contract":
       return ["internal only", "stable internal contract", "public API", "partner/external dependency", "unknown"];
     case "state_ownership":
@@ -723,28 +717,28 @@ function optionsForConcern(concern: ArchitectureConcern): string[] | undefined {
 function residualPromptForClaim(claim: ArchitectureClaim, unknown: string): string {
   switch (claim.concern) {
     case "authentication":
-      return `${claim.claim} ${unknown}`;
+      return `Authentication evidence is present. ${unknown}`;
     case "authorization":
-      return `${claim.claim} ${unknown}`;
+      return `Authorization evidence is present. ${unknown}`;
     case "data_storage":
-      return `${claim.claim} ${unknown}`;
+      return `Storage evidence is present. ${unknown}`;
     case "deployment":
-      return `${claim.claim} ${unknown}`;
+      return `Deployment evidence is present. ${unknown}`;
     default:
-      return `${claim.claim} ${unknown}`;
+      return `Architecture evidence is present. ${unknown}`;
   }
 }
 
 function residualOptionsForClaim(claim: ArchitectureClaim): string[] | undefined {
   switch (claim.concern) {
     case "authentication":
-      return ["production path", "CLI-only path", "legacy compatibility", "unknown"];
+      return ["security review", "test coverage", "credential rotation", "user rollout", "no near-term action"];
     case "authorization":
       return authorizationOptionsForClaim(claim);
     case "data_storage":
       return ["core workflow data", "audit/history data", "cache/session data", "unknown"];
     case "deployment":
-      return ["production environment", "staging environment", "local development", "unknown"];
+      return ["private preview", "public launch", "production hardening", "rollback readiness", "no near-term action"];
     default:
       return undefined;
   }
@@ -754,7 +748,7 @@ function authorizationOptionsForClaim(claim: ArchitectureClaim): string[] {
   const text = claimText(claim);
   const options: string[] = [];
   if (/(project|user[-_ ]?projects?|membership|member)/.test(text)) {
-    options.push("project membership roles");
+    options.push("role or membership rules");
   }
   if (/(resource|permission)/.test(text)) {
     options.push("resource-level permissions");
@@ -768,7 +762,54 @@ function authorizationOptionsForClaim(claim: ArchitectureClaim): string[] {
   if (/session/.test(text)) {
     options.push("session access boundary");
   }
-  return [...new Set([...options, "unknown"])];
+  return [...new Set([...options, "no near-term action"])];
+}
+
+function isAskableUserIntentQuestion(candidate: QuestionCandidate): boolean {
+  const text = questionVisibleText(candidate);
+  return isFutureIntentText(text)
+    && !hasCurrentStateInterviewText(text)
+    && !hasWrongAbstractionLevelText(text);
+}
+
+function questionVisibleText(candidate: QuestionCandidate): string {
+  return [
+    candidate.prompt,
+    candidate.reason,
+    ...(candidate.options ?? []),
+  ].join(" ");
+}
+
+function isFutureIntentText(text: string): boolean {
+  return /\b(next|future|prioriti[sz]e|priority|protect|guide|risk|review|rollout|launch|hardening|planned|plan|obligation|compliance|preserve|investment|costly|decision|action|move|improve|workflow|outcome|support|boundary|compatibility|recovery|regression)\b/i.test(text);
+}
+
+function hasCurrentStateInterviewText(text: string): boolean {
+  return [
+    /should the coach assume/i,
+    /what .* assume .*right now/i,
+    /what .* should .* assume .*current/i,
+    /current project reality/i,
+    /current and reliable/i,
+    /production[, -]+CLI-only[, -]+or legacy/i,
+    /production path.*CLI-only path.*legacy/i,
+    /what deployment model should this code assume/i,
+    /local-only use, private hosting, public hosting/i,
+    /no roles, admin-only controls, role-based access/i,
+    /identity boundary should the coach assume/i,
+    /test posture should the coach treat as current/i,
+    /operational evidence should the coach consider current/i,
+    /current work context should the coach assume/i,
+  ].some((pattern) => pattern.test(text));
+}
+
+function hasWrongAbstractionLevelText(text: string): boolean {
+  return [
+    /(?:^|\s)[\w.-]+\/[\w./-]+\.(?:ts|tsx|js|jsx|swift|rs|sql|toml|json|yaml|yml|md)\b/i,
+    /\b(?:apps|packages|workers|crates|Sources|src|tests|migrations)\/[\w./-]+/i,
+    /\b[A-Z][A-Za-z0-9]+(?:Controller|Service|Manager|Store|Editor|Filter|View|Provider|Repository)\b/,
+    /\b[a-z][A-Za-z0-9]+(?:Storage|Service|Manager|Repository|Provider)\b/,
+  ].some((pattern) => pattern.test(text));
 }
 
 function hasConcreteSecurityEvidence(claim: ArchitectureClaim): boolean {

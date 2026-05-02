@@ -40,14 +40,12 @@ const claimRules: ClaimRule[] = [
     optionalFamilies: ["credential"],
     subject: "web user authentication",
     claim: "Web users authenticate through an external identity provider and server-side sessions.",
-    residualUnknowns: ["Whether API-key or MCP session authentication is production, CLI-only, or legacy."],
   },
   {
     concern: "authentication",
     requiredFamilies: ["credential", "session"],
     subject: "programmatic authentication",
     claim: "Programmatic access uses credentials and server-side session state.",
-    residualUnknowns: ["Whether this path shares the same user and authorization model as web login."],
   },
   {
     concern: "authorization",
@@ -55,7 +53,7 @@ const claimRules: ClaimRule[] = [
     optionalFamilies: ["schema"],
     subject: "authorization boundary",
     claim: "Repository evidence shows role, membership, or permission boundaries.",
-    residualUnknowns: ["Which detected role, membership, or permission rule is load-bearing for the next test harness."],
+    residualUnknowns: ["Which access-control risk should the next test harness protect first."],
   },
   {
     concern: "data_storage",
@@ -70,7 +68,7 @@ const claimRules: ClaimRule[] = [
     requiredFamilies: ["deployment_config"],
     subject: "deployment target",
     claim: "Deployment or release configuration is present and should be treated as load-bearing.",
-    residualUnknowns: ["Which environment is the primary release target."],
+    residualUnknowns: ["Which rollout risk should guide the next operational check."],
   },
   {
     concern: "package_boundary",
@@ -97,7 +95,7 @@ const claimRules: ClaimRule[] = [
     requiredFamilies: ["observability"],
     subject: "runtime feedback",
     claim: "Runtime feedback or operational evidence is visible.",
-    residualUnknowns: ["Which signal should be trusted as the primary health indicator."],
+    residualUnknowns: ["Which user-visible failure should runtime monitoring protect first."],
   },
 ];
 
@@ -290,13 +288,13 @@ function specializeClaim(rule: ClaimRule, nodes: ArchitectureEvidenceNode[]): st
   const text = nodes.flatMap((node) => node.citations).join(" ").toLowerCase();
   if (rule.concern === "authentication" && text.includes("github")) {
     if (text.includes("session")) {
-      return "Web users authenticate through GitHub OAuth with server-side session state.";
+      return "Web users authenticate through an external OAuth provider with server-side session state.";
     }
-    return "Web users authenticate through GitHub OAuth.";
+    return "Web users authenticate through an external OAuth provider.";
   }
   if (rule.concern === "authorization") {
     if (/(user[-_ ]?projects?|project)/.test(text) && /(role|membership|member)/.test(text)) {
-      return "Project membership and role boundaries are visible and should be treated as load-bearing authorization.";
+      return "Membership and role boundaries are visible and should be treated as load-bearing authorization.";
     }
     if (/(permission|resource)/.test(text)) {
       return "Resource-level permission boundaries are visible and should be treated as load-bearing authorization.";
@@ -309,21 +307,21 @@ function specializeClaim(rule: ClaimRule, nodes: ArchitectureEvidenceNode[]): st
     }
   }
   if (rule.concern === "data_storage" && (text.includes("d1") || text.includes(".sql"))) {
-    return "Persistent data appears to be backed by D1 or relational migrations.";
+    return "Persistent data appears to be backed by relational schema or migrations.";
   }
   if (rule.concern === "deployment" && /cloudflare|wrangler|worker/.test(text)) {
     const environments = ["local", "staging", "production", "preview"]
       .filter((environment) => text.includes(environment));
     if (environments.includes("staging") && environments.includes("production")) {
-      return `Cloudflare Workers deployment has ${environments.join(", ")} environment evidence.`;
+      return `Deployment evidence includes ${environments.join(", ")} environment signals.`;
     }
-    return "Deployment evidence points to Cloudflare Workers or Worker-based services.";
+    return "Deployment evidence points to configured hosted runtime services.";
   }
   if (rule.concern === "package_boundary" && text.includes("rust")) {
-    return "A React or TypeScript surface depends on a Rust, WASM, or native runtime boundary.";
+    return "A frontend surface depends on a separate native, WASM, or compiled runtime boundary.";
   }
   if (rule.concern === "package_boundary" && text.includes("package.swift")) {
-    return "Swift package boundaries are visible and should be protected by package-level tests.";
+    return "Application package boundaries are visible and should be protected by package-level tests.";
   }
   return rule.claim;
 }
@@ -338,7 +336,7 @@ function hasConcreteAuthorizationEvidence(nodes: ArchitectureEvidenceNode[]): bo
 function hasConcreteAuthenticationEvidence(nodes: ArchitectureEvidenceNode[]): boolean {
   const text = nodeText(nodes);
   const hasProvider = /(github|oauth|external_provider)/.test(text);
-  const hasSession = /(session|cookie|session_kv|web-sessions)/.test(text);
+  const hasSession = /(session|cookie|session_kv)/.test(text);
   const hasImplementationAnchor = /(\.test\.|tests?\/|src\/|workers\/|apps\/|\.env|wrangler)/.test(text);
   return hasProvider && hasSession && hasImplementationAnchor;
 }

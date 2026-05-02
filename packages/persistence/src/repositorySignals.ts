@@ -1,13 +1,17 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { CoachEventEnvelope } from "../../kernel/src/protocol.js";
 import type { TestSummary } from "../../kernel/src/protocol.js";
 import { telemetryFromEvidence } from "../../kernel/src/telemetry.js";
 import type { ArchitecturalTelemetryBundle } from "../../kernel/src/telemetryTypes.js";
 import { architectureShapeProvider } from "../../signals/src/architectureShape.js";
 import { claimCandidateProvider } from "../../signals/src/claimCandidates.js";
-import { staticCodeIntelligenceProvider } from "../../signals/src/codeIntelligence.js";
+import {
+  codeIntelligenceReportToEvidence,
+  parseCodeIntelligenceReport,
+} from "../../signals/src/codeIntelligence.js";
 import { configBoundaryProvider } from "../../signals/src/config.js";
 import { documentationProvider } from "../../signals/src/documentation.js";
 import { diagnosticsProvider } from "../../signals/src/diagnostics.js";
@@ -25,6 +29,8 @@ export type RepositorySignalCollectionInput = {
   capturedAt: string;
   correlationId: string;
   maxFiles?: number;
+  codeIntelligenceCommand?: string;
+  codeIntelligenceArgs?: string[];
 };
 
 export function collectRepositoryTelemetry(
@@ -49,7 +55,10 @@ export function collectRepositoryTelemetry(
     recentRequests: [request],
     testSummary: readTestSummary(repoRoot),
   };
-  const optionalSignals = collectSynchronousProviders(context);
+  const optionalSignals = [
+    ...collectSynchronousProviders(context),
+    ...collectRequiredCodeIntelligence(context, input),
+  ];
   const testSummary = readTestSummary(repoRoot);
   const event: CoachEventEnvelope = {
     host: "ceetrix-tech-lead",
@@ -91,7 +100,6 @@ function collectSynchronousProviders(context: SignalContext): OptionalSignalResu
     gitDiffProvider,
     configBoundaryProvider,
     documentationProvider,
-    staticCodeIntelligenceProvider,
     diagnosticsProvider,
   ].flatMap((provider) => {
     try {
@@ -120,6 +128,54 @@ function collectSynchronousProviders(context: SignalContext): OptionalSignalResu
       } satisfies OptionalSignalResult];
     }
   });
+}
+
+function collectRequiredCodeIntelligence(
+  context: SignalContext,
+  input: RepositorySignalCollectionInput,
+): OptionalSignalResult[] {
+  const command = input.codeIntelligenceCommand
+    ?? process.env.CEETRIX_TECH_LEAD_CODE_INTEL_COMMAND
+    ?? process.env.TECH_COACH_CODE_INTEL_COMMAND
+    ?? defaultCodeIntelligenceCommand();
+  const args = input.codeIntelligenceArgs
+    ?? envArgs(process.env.CEETRIX_TECH_LEAD_CODE_INTEL_ARGS)
+    ?? envArgs(process.env.TECH_COACH_CODE_INTEL_ARGS)
+    ?? [];
+
+  if (!existsSync(command)) {
+    throw new Error(`Required code intelligence producer is missing: ${command}`);
+  }
+
+  const result = execFileSync(command, args, {
+    cwd: context.cwd,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    maxBuffer: 1024 * 1024 * 64,
+  });
+  return codeIntelligenceReportToEvidence(
+    parseCodeIntelligenceReport(result),
+    { changedFiles: context.changedFiles },
+  );
+}
+
+function defaultCodeIntelligenceCommand(): string {
+  return resolve(dirname(fileURLToPath(import.meta.url)), "../../../scripts/complexity-to-code-intel.ts");
+}
+
+function envArgs(value: string | undefined): string[] | undefined {
+  if (!value || value.trim().length === 0) {
+    return undefined;
+  }
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (Array.isArray(parsed) && parsed.every((item) => typeof item === "string")) {
+      return parsed;
+    }
+  } catch {
+    // Fall through to simple whitespace splitting for local shell use.
+  }
+  return value.split(/\s+/).filter(Boolean);
 }
 
 function normalizeProviderOutput(

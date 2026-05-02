@@ -113,8 +113,8 @@ describe("assessment artifact language", () => {
         id: "question-claim-authentication-claim-authentication-web-user-authentication-0",
         concern: "authentication",
         kind: "choose",
-        prompt: "Is API-key authentication production, CLI-only, or legacy?",
-        reason: "The repository has multiple auth paths.",
+        prompt: "Which security review should authentication evidence guide next?",
+        reason: "Repository evidence answers the current shape; this asks which future risk should drive the next architecture move.",
         relatedFactIds: [],
         relatedUnknownIds: [],
         relatedSignalIds: [],
@@ -125,7 +125,7 @@ describe("assessment artifact language", () => {
       storePath: "/repo/.ceetrix/tech-lead/tech-lead.db",
     } satisfies LatestAssessmentPack);
 
-    expect(markdown).toContain("- Is API-key authentication production, CLI-only, or legacy?");
+    expect(markdown).toContain("- Which security review should authentication evidence guide next?");
     expect(markdown).toContain("Question id: question-claim-authentication-claim-authentication-web-user-authentication-0");
     expect(markdown).not.toContain("- question-claim-authentication-claim-authentication-web-user-authentication-0:");
   });

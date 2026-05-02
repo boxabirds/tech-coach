@@ -114,19 +114,14 @@ describe("code intelligence adapter", () => {
     ).toThrow(/files must be an array/);
   });
 
-  it("reports absent, failed, non-zero, malformed, and timeout command boundaries as diagnostic evidence", async () => {
+  it("requires a producer command and reports failed command boundaries as diagnostic evidence", async () => {
     await expect(
       collectCodeIntelligenceEvidence({
         cwd: "/repo",
         changedFiles: [],
         recentRequests: [],
       }),
-    ).resolves.toEqual([
-      expect.objectContaining({
-        status: "absent",
-        error: "no code intelligence producer configured",
-      }),
-    ]);
+    ).rejects.toThrow("code intelligence producer command is required");
 
     await expect(
       collectCodeIntelligenceEvidence(

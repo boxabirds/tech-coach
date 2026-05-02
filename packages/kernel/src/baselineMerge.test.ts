@@ -161,10 +161,17 @@ describe("applyBaselineAnswers", () => {
       event: brownfieldEvent,
       evidence: brownfieldEvidence,
     });
-    const questions = planBaselineInterviewQuestions({ baseline });
-    const deploymentQuestion = questions.find(
-      (question) => question.concern === "deployment",
-    );
+    const questions = [{
+      id: "question-deployment-future-risk",
+      concern: "deployment" as const,
+      kind: "choose" as const,
+      prompt: "Which future deployment risk should the coach prioritize?",
+      reason: "User intent question supplied by the host.",
+      relatedFactIds: [],
+      relatedUnknownIds: ["unknown-deployment"],
+      relatedSignalIds: [],
+    }];
+    const deploymentQuestion = questions[0];
 
     const merged = applyBaselineAnswers({
       baseline,
@@ -222,10 +229,17 @@ describe("applyBaselineAnswers", () => {
         ]),
       ],
     });
-    const questions = planBaselineInterviewQuestions({ baseline });
-    const deploymentQuestion = questions.find(
-      (question) => question.concern === "deployment",
-    );
+    const questions = [{
+      id: "question-deployment-future-risk",
+      concern: "deployment" as const,
+      kind: "choose" as const,
+      prompt: "Which future deployment risk should the coach prioritize?",
+      reason: "User intent question supplied by the host.",
+      relatedFactIds: [],
+      relatedUnknownIds: ["unknown-deployment"],
+      relatedSignalIds: [],
+    }];
+    const deploymentQuestion = questions[0];
 
     const merged = applyBaselineAnswers({
       baseline,

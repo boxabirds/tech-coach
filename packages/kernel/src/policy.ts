@@ -3,7 +3,10 @@ import type {
   ArchitectureBaseline,
   ArchitectureConcern,
   BaselineQuestion,
+  ComplexityPressureAssessment,
   DecisionAxisAssessment,
+  StructureAdequacyAssessment,
+  StructuralSupportAssessment,
   ThresholdCandidate,
 } from "./baselineTypes.js";
 import type {
@@ -16,6 +19,7 @@ import type {
   PrincipleGuidance,
   StructuralPatternId,
 } from "./principleTypes.js";
+import { coachActionForAdequacy } from "./complexity.js";
 
 export type StableQuestionProjection = Pick<
   BaselineQuestion,
@@ -75,6 +79,9 @@ export type ConcernPolicyState = {
   confidence: string;
   thresholds: ThresholdCandidate[];
   axes: DecisionAxisAssessment;
+  pressure?: ComplexityPressureAssessment;
+  support?: StructuralSupportAssessment;
+  adequacy?: StructureAdequacyAssessment;
   principleIds: ArchitecturePrincipleId[];
   patternIds: StructuralPatternId[];
   evidenceStrength: "none" | "weak" | "supported" | "strong";
@@ -87,6 +94,7 @@ export type SelectedPolicyAction = {
   reason: string;
   thresholdCandidates: ThresholdCandidate[];
   axes: DecisionAxisAssessment;
+  adequacy?: StructureAdequacyAssessment;
   principleIds: ArchitecturePrincipleId[];
   patternId?: StructuralPatternId;
   contract?: {
@@ -120,6 +128,9 @@ export function selectArchitecturePolicy(input: {
       confidence: concern.confidence,
       thresholds: [...concern.thresholdCandidates].sort(),
       axes: concern.axes,
+      ...(concern.pressure ? { pressure: concern.pressure } : {}),
+      ...(concern.support ? { support: concern.support } : {}),
+      ...(concern.adequacy ? { adequacy: concern.adequacy } : {}),
       principleIds: Array.from(new Set(
         guidance?.principles.map((principle) => principle.id) ?? [],
       )).sort(),
@@ -190,6 +201,40 @@ function selectPolicyAction(input: {
       guidance: input.principleGuidance.find((item) => item.concern === risk.concern),
       requiresQuestion: input.questions.some((question) => question.concern === risk.concern),
       provisional: risk.confidence === "low",
+    });
+  }
+
+  const underStructured = input.baseline.concerns
+    .filter((concern) =>
+      concern.concern !== "risk_hotspot"
+      && concern.adequacy?.status === "under_structured"
+    )
+    .sort(compareAdequacyPriority)[0];
+  if (underStructured?.adequacy) {
+    const requiresQuestion = input.questions.some((question) => question.concern === underStructured.concern);
+    return selectedAction({
+      concern: underStructured.concern,
+      action: coachActionForAdequacy(underStructured.adequacy),
+      intervention: requiresQuestion ? "interview-required" : "recommend",
+      reason: underStructured.adequacy.reason,
+      baseline: input.baseline,
+      guidance: input.principleGuidance.find((item) => item.concern === underStructured.concern),
+      requiresQuestion,
+      provisional: underStructured.adequacy.confidence === "low",
+    });
+  }
+
+  const overStructured = input.baseline.concerns
+    .find((concern) => concern.adequacy?.status === "over_structured");
+  if (overStructured?.adequacy) {
+    return selectedAction({
+      concern: overStructured.concern,
+      action: "Localize",
+      intervention: "note",
+      reason: overStructured.adequacy.reason,
+      baseline: input.baseline,
+      guidance: input.principleGuidance.find((item) => item.concern === overStructured.concern),
+      doNotAdd: ["Do not add more structure in this area until complexity pressure justifies it."],
     });
   }
 
@@ -270,6 +315,35 @@ function selectPolicyAction(input: {
   });
 }
 
+function compareAdequacyPriority(
+  left: ArchitectureBaseline["concerns"][number],
+  right: ArchitectureBaseline["concerns"][number],
+): number {
+  return concernPriority(right.concern) - concernPriority(left.concern)
+    || right.confidence.localeCompare(left.confidence)
+    || left.concern.localeCompare(right.concern);
+}
+
+function concernPriority(concern: ArchitectureConcern): number {
+  switch (concern) {
+    case "authentication":
+    case "authorization":
+    case "risk_hotspot":
+      return 100;
+    case "data_storage":
+    case "api_contract":
+      return 90;
+    case "deployment":
+    case "observability":
+      return 80;
+    case "state_ownership":
+    case "package_boundary":
+      return 70;
+    default:
+      return 50;
+  }
+}
+
 function selectedAction(input: {
   concern?: ArchitectureConcern;
   action: CoachAction;
@@ -300,6 +374,7 @@ function selectedAction(input: {
       planningHorizon: "unknown",
       solutionVisibility: "unknown",
     },
+    ...(concern?.adequacy ? { adequacy: concern.adequacy } : {}),
     principleIds: Array.from(new Set(input.guidance?.principles.map((principle) => principle.id) ?? [])).sort(),
     ...(pattern ? { patternId: pattern.pattern } : {}),
     ...(input.guidance?.contract ? { contract: input.guidance.contract } : {}),

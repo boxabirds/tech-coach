@@ -89,7 +89,7 @@ describe("assessment graph navigation", () => {
     });
 
     expect(claim.node.detail).toMatchObject({
-      claim: "Web users authenticate through GitHub OAuth with server-side session state.",
+      claim: "Web users authenticate through an external OAuth provider with server-side session state.",
     });
     expect(claim.edges).toHaveLength(2);
     expect(claim.pageInfo.hasNextPage).toBe(true);
@@ -258,7 +258,7 @@ function fixtureResult(): CaptureAssessmentResult {
       repository: [{
         id: "signal-repository-test",
         family: "repository",
-        source: "static-code-intelligence",
+        source: "code-intelligence:tree-sitter",
         status: "present",
         freshness: "current",
         confidence: "high",
@@ -276,7 +276,7 @@ function fixtureResult(): CaptureAssessmentResult {
               kind: "auth.github_oauth",
               label: "GitHub OAuth code path",
               summary: "apps/web/src/routes/auth/github.ts contains GitHub OAuth implementation evidence.",
-              source: "static-code-intelligence",
+              source: "code-intelligence",
               confidence: "high",
               freshness: "current",
               provenance: [{ path: "apps/web/src/routes/auth/github.ts" }],
@@ -287,7 +287,7 @@ function fixtureResult(): CaptureAssessmentResult {
               kind: "auth.session",
               label: "server-side session code path",
               summary: "apps/web/src/session.ts contains session state implementation evidence.",
-              source: "static-code-intelligence",
+              source: "code-intelligence",
               confidence: "high",
               freshness: "current",
               provenance: [{ path: "apps/web/src/session.ts" }],
@@ -305,12 +305,12 @@ function fixtureResult(): CaptureAssessmentResult {
       id: "question-auth-scope",
       concern: "authentication",
       kind: "choose",
-      prompt: "Is API-key auth production or CLI-only?",
-      reason: "Programmatic path was detected.",
+      prompt: "Which future security review should the authentication evidence guide?",
+      reason: "Programmatic path evidence was detected.",
       relatedFactIds: [],
       relatedUnknownIds: [],
       relatedSignalIds: [],
-      options: ["production", "CLI-only"],
+      options: ["security review", "test coverage"],
     }],
     answeredQuestions: [{
       answerId: "answer-auth",
@@ -364,18 +364,18 @@ function fixtureResult(): CaptureAssessmentResult {
         id: "question-auth-scope",
         concern: "authentication",
         kind: "choose",
-        prompt: "Is API-key auth production or CLI-only?",
-        reason: "Programmatic path was detected.",
+        prompt: "Which future security review should the authentication evidence guide?",
+        reason: "Programmatic path evidence was detected.",
         relatedFactIds: [],
         relatedUnknownIds: [],
         relatedSignalIds: [],
-        options: ["production", "CLI-only"],
+        options: ["security review", "test coverage"],
       }],
       claims: [{
         id: "claim-auth-github",
         concern: "authentication",
         subject: "Web login",
-        claim: "Web users authenticate through GitHub OAuth with server-side session state.",
+        claim: "Web users authenticate through an external OAuth provider with server-side session state.",
         confidence: "high",
         evidenceNodeIds: ["signal-auth-route", "signal-session"],
         evidence: [
@@ -383,7 +383,7 @@ function fixtureResult(): CaptureAssessmentResult {
           "session storage: apps/web/src/session.ts",
         ],
         counterEvidence: [],
-        residualUnknowns: ["Whether API-key auth is production or CLI-only."],
+        residualUnknowns: [],
       }],
       revisitAlerts: [],
       principleGuidance: [],

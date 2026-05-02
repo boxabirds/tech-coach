@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { configBoundaryProvider } from "./config.js";
 import { documentationProvider } from "./documentation.js";
-import { staticCodeIntelligenceProvider } from "./codeIntelligence.js";
 import { buildProjectInventory, inventoryProvider } from "./inventory.js";
 import type { OptionalSignalResult, SignalContext } from "./index.js";
 
@@ -74,35 +73,6 @@ name = "taskmgr-production"
     );
     expect(result.evidence.join("\n")).toContain("docs/ops/staging.md");
     expect(result.evidence.join("\n")).not.toContain("docs/research/noise.md");
-  });
-
-  it("extracts code facts without needing a language-specific auth extractor", () => {
-    const repo = tempRepo({
-      "workers/taskmgr/src/auth/web-oauth.ts": "export async function githubOAuth() { return await fetch('https://github.com/login/oauth/access_token') }",
-      "workers/taskmgr/src/auth/web-sessions.ts": "export function createSession(env) { return env.SESSION_KV.put('session', 'cookie', { httpOnly: true }) }",
-      "workers/taskmgr/src/auth/membership.ts": "export function requireRole(userProjects, role) { return userProjects.some((p) => p.role === role) }",
-      "workers/taskmgr/src/index.ts": "import { githubOAuth } from './auth/web-oauth'; export default { fetch() { return githubOAuth(); } }",
-      "workers/taskmgr/src/auth/membership.test.ts": "import { expect, test } from 'vitest'; test('roles', () => expect(true).toBe(true));",
-    });
-
-    const results = staticCodeIntelligenceProvider.collect(context(repo, [
-      "workers/taskmgr/src/auth/web-oauth.ts",
-      "workers/taskmgr/src/auth/web-sessions.ts",
-      "workers/taskmgr/src/auth/membership.ts",
-      "workers/taskmgr/src/index.ts",
-      "workers/taskmgr/src/auth/membership.test.ts",
-    ])) as OptionalSignalResult[];
-    const facts = results.flatMap((result) => result.facts ?? []);
-
-    expect(facts).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ kind: "auth.github_oauth", concern: "authentication" }),
-        expect.objectContaining({ kind: "auth.session", concern: "authentication" }),
-        expect.objectContaining({ kind: "authz.membership_role", concern: "authorization" }),
-        expect.objectContaining({ kind: "deployment.runtime", concern: "deployment" }),
-        expect.objectContaining({ kind: "test.surface", concern: "testing" }),
-      ]),
-    );
   });
 
   it("makes inventory inclusion and noise exclusion explicit", () => {

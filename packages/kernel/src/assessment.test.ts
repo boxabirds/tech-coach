@@ -101,15 +101,16 @@ describe("assessArchitecture", () => {
         expect.objectContaining({
           concern: "authorization",
           confidence: "high",
-          claim: expect.stringContaining("Project membership and role boundaries"),
+          claim: expect.stringContaining("Membership and role boundaries"),
         }),
       ]),
     );
-    expect(prompts).toContain("Project membership and role boundaries");
+    expect(prompts).toContain("Which access-control risk should the next test harness protect first");
     expect(prompts).not.toContain("Should the coach assume no roles, admin-only controls, role-based access, or resource-level permissions?");
+    expect(prompts).not.toContain("workers/taskmgr");
   });
 
-  it("keeps broad authorization setup questions when assessment evidence is sparse", () => {
+  it("does not ask broad authorization setup questions when assessment evidence is sparse", () => {
     const result = assessArchitecture({
       event: {
         host: "test",
@@ -126,7 +127,7 @@ describe("assessArchitecture", () => {
     const authorization = result.questions.find((question) => question.concern === "authorization");
 
     expect((result.claims ?? []).filter((claim) => claim.concern === "authorization")).toEqual([]);
-    expect(authorization?.prompt).toBe("What authorization or role boundary should the coach assume for this project right now?");
+    expect(authorization).toBeUndefined();
   });
 
   it("returns revisit alerts when project memory conditions match current work", () => {
