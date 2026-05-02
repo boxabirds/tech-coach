@@ -67,6 +67,8 @@ export const revisitInput = {
 
 export const decisionToRecord: DecisionRecord = {
   id: "decision-mcp-storage",
+  kind: "decision",
+  adviceStatus: "active",
   concern: "data_storage",
   decision: "Keep localStorage for the private prototype",
   context: "Single user prototype before sharing",

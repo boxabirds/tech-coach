@@ -5,6 +5,11 @@ import type {
   ProtocolValidationIssue,
   TestSummary,
 } from "./protocol.js";
+import type {
+  ComplexityPressureLevel,
+  StructuralSupportLevel,
+  StructureAdequacyStatus,
+} from "./baselineTypes.js";
 import type { OptionalSignalResult } from "../../signals/src/index.js";
 
 export type SignalFamily =
@@ -67,6 +72,8 @@ export type TestSignal = {
 
 export type MemorySignal = {
   id?: string;
+  kind?: string;
+  adviceStatus?: string;
   concern?: string;
   decision?: string;
   context?: string;
@@ -76,6 +83,11 @@ export type MemorySignal = {
   source?: string;
   createdAt?: string;
   revisitIf: string[];
+  pressure?: ComplexityPressureLevel;
+  support?: StructuralSupportLevel;
+  adequacyStatus?: StructureAdequacyStatus;
+  acceptedRisk?: string;
+  evidenceRefs?: string[];
   evidence: string[];
 };
 

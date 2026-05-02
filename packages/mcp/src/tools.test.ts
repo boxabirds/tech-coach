@@ -66,7 +66,7 @@ describe("architecture MCP tool contracts", () => {
     expect(guidance?.interview.answerContract.instruction).toContain("Do not answer");
   });
 
-  it("accepts legacy event input and represents no-action guidance cleanly", () => {
+  it("accepts normalized host event input and represents no-action guidance cleanly", () => {
     const result = invokeArchitectureTool("architecture.assess_change", { event: noActionEvent });
 
     expect(result.ok).toBe(true);

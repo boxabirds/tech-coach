@@ -29,7 +29,7 @@ import {
 import { normalizeHostEvent } from "../../kernel/src/normalize.js";
 import { ProtocolValidationError } from "../../kernel/src/protocol.js";
 import type { CoachAction } from "../../kernel/src/protocol.js";
-import { checkRevisit, type RevisitAlert } from "../../kernel/src/revisit.js";
+import { type RevisitAlert } from "../../kernel/src/revisit.js";
 import {
   assertValidTelemetryBundle,
   telemetryFromEvent,
@@ -164,7 +164,7 @@ type MemoryOptions = {
 export const architectureTools: ToolDescriptor[] = [
   descriptor(
     "architecture.assess_change",
-    "Return structured architecture guidance for typed telemetry or a legacy host event. Prefer typed telemetry when available. This tool never writes memory.",
+    "Return structured architecture guidance for typed telemetry or a normalized host event. Prefer typed telemetry when available. This tool never writes memory.",
   ),
   descriptor(
     "architecture.capture_assessment",
@@ -491,12 +491,7 @@ export function checkRevisitTriggers(
   runtime: ArchitectureToolRuntime = {},
 ): RevisitAlert[] {
   const value = withOptionalMemory(input, runtime);
-  const normalized = normalizeAssessmentInput(value);
-  return checkRevisit({
-    event: normalized.event,
-    records: normalized.memoryRecords,
-    telemetry: normalized.telemetry,
-  });
+  return assessArchitecture(value).revisitAlerts;
 }
 
 export function getMemory(
@@ -552,7 +547,7 @@ function withOptionalMemory(
 
 function readExistingMemoryRecords(value: Record<string, unknown>): DecisionRecord[] {
   return Array.isArray(value.memoryRecords)
-    ? value.memoryRecords.filter((record): record is DecisionRecord => isRecord(record))
+    ? value.memoryRecords.map((record) => assertDecisionRecord(record))
     : [];
 }
 

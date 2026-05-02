@@ -3,7 +3,9 @@ import type { DecisionRecord } from "../../memory.js";
 
 export const localStorageDecision: DecisionRecord = {
   id: "decision-localstorage-projects",
-  concern: "project persistence",
+  kind: "accepted_debt",
+  adviceStatus: "active",
+  concern: "data_storage",
   decision: "Use localStorage while saved projects are single-user only",
   context: "Early prototype with no accounts or sharing",
   alternatives: ["SQLite", "Postgres", "Cloud KV"],
@@ -13,10 +15,17 @@ export const localStorageDecision: DecisionRecord = {
   revisitIf: ["sharing", "sync", "user accounts"],
   createdAt: "2026-04-30T12:00:00.000Z",
   source: "coach",
+  pressure: "medium",
+  support: "localized",
+  adequacyStatus: "under_structured",
+  acceptedRisk: "Data cannot be shared across users; browser storage can be cleared",
+  evidenceRefs: ["fact-data_storage-localstorage"],
 };
 
 export const authShortcutDecision: DecisionRecord = {
   id: "decision-no-auth",
+  kind: "decision",
+  adviceStatus: "active",
   concern: "authentication",
   decision: "Skip authentication while the app is local-only",
   context: "Single developer workflow",
@@ -58,6 +67,8 @@ export const nonMatchingEvent: CoachEventEnvelope = {
 
 export const invalidDecision = {
   id: "",
+  kind: "",
+  adviceStatus: "",
   concern: "project persistence",
   decision: "Use localStorage",
   context: "Prototype",

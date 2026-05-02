@@ -226,6 +226,10 @@ function classifyEvidence(
   axes: DecisionAxisAssessment;
   hasConflict: boolean;
 }> {
+  if (item.category === "prior_decision") {
+    return [];
+  }
+
   const text = item.evidence.join("\n").toLowerCase();
   const matches: ReturnType<typeof classifyEvidence> = [];
   const add = (
@@ -642,11 +646,11 @@ function estimateMaturityState(
     return "Exploratory";
   }
   const confidence = combineFactConfidence(facts);
-  if (confidence === "low") {
-    return "Exploratory";
-  }
   if (draft?.thresholds.has("revisit")) {
     return "Revisit";
+  }
+  if (confidence === "low") {
+    return "Exploratory";
   }
 
   const decisionForConcern = priorDecisions.find(

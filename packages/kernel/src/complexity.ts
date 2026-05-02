@@ -129,16 +129,17 @@ export function debtAssessmentFor(input: {
   acceptedRisk?: string;
   revisitIf?: string[];
   stale?: boolean;
+  status?: ArchitectureDebtStatus;
 }): ArchitectureDebtAssessment {
   const accepted = input.accepted === true;
   const stale = input.stale === true;
-  const status: ArchitectureDebtStatus = stale
+  const status: ArchitectureDebtStatus = input.status ?? (stale
     ? "stale"
     : accepted
       ? input.adequacy.status === "under_structured"
         ? "accepted_debt"
         : "reopened"
-      : "finding";
+      : "finding");
   return {
     id: `debt-${input.adequacy.concern}`,
     concern: input.adequacy.concern,

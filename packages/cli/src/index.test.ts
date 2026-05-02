@@ -82,7 +82,7 @@ describe("CLI argument contract", () => {
 });
 
 describe("runAssessmentCommand", () => {
-  it("returns structured JSON-ready output for legacy event input", () => {
+  it("returns structured JSON-ready output for normalized host event input", () => {
     const output = runAssessmentCommand(
       cliEventInput,
       { output: "json", readOnly: true },

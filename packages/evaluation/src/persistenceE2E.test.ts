@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { runSelectedCommand } from "../../cli/src/index.js";
 import { handleMcpJsonRpc } from "../../../mcp/server/index.js";
 import { thresholdEvent, decisionToRecord } from "../../mcp/src/__fixtures__/inputs.js";
+import { localStorageDecision } from "../../kernel/src/__fixtures__/memory/scenarios.js";
 import type { ToolResult } from "../../mcp/src/tools.js";
 import type { CaptureAssessmentResult } from "../../persistence/src/index.js";
 import type {
@@ -88,6 +89,100 @@ describe("persistence E2E workflows", () => {
       expect(rerun.lifecycleState).toBe("rerun_reused");
       expect(rerun.answeredQuestions).toContainEqual(expect.objectContaining({ questionId: question.id }));
       expect(rerun.decisions).toContainEqual(expect.objectContaining({ id: "decision-e2e-mcp" }));
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  maybeIt("persists accepted architecture debt with adequacy fields and reopens it on pressure change", async () => {
+    const repo = tempRepo();
+    try {
+      await callMcp<CaptureAssessmentResult>("architecture.capture_assessment", {
+        cwd: repo,
+        event: {
+          host: "persistence-e2e",
+          event: "assessment",
+          cwd: repo,
+          userRequest: "Capture current local project storage",
+          recentRequests: [],
+          changedFiles: ["src/lib/projectStorage.ts"],
+          repoSignals: {
+            status: "present",
+            evidence: ["Saved projects write to localStorage for a single-user workflow."],
+          },
+          memoryRefs: [],
+          priorDecisions: [],
+          optionalSignals: [],
+        },
+        now: "2026-05-01T11:10:00.000Z",
+        responseDetail: "full",
+      });
+
+      await callMcp<CaptureAssessmentResult>("architecture.record_decision", {
+        cwd: repo,
+        confirmed: true,
+        decision: {
+          ...localStorageDecision,
+          id: "accepted-debt-localstorage-e2e",
+          adviceStatus: "handled",
+          createdAt: "2026-05-01T11:11:00.000Z",
+        },
+        now: "2026-05-01T11:11:00.000Z",
+        responseDetail: "full",
+      });
+
+      const rerun = await callMcp<CaptureAssessmentResult>("architecture.capture_assessment", {
+        cwd: repo,
+        event: {
+          host: "persistence-e2e",
+          event: "assessment",
+          cwd: repo,
+          userRequest: "Let teams share saved projects across devices",
+          recentRequests: ["Sync saved projects"],
+          changedFiles: ["src/lib/projectStorage.ts", "src/api/projects.ts"],
+          repoSignals: {
+            status: "present",
+            evidence: [
+              "Saved projects write to localStorage and now need team sharing, sync, and collaboration.",
+            ],
+          },
+          memoryRefs: ["accepted-debt-localstorage-e2e"],
+          priorDecisions: [],
+          optionalSignals: [],
+        },
+        now: "2026-05-01T11:12:00.000Z",
+        responseDetail: "full",
+      });
+
+      expect(rerun.decisions).toContainEqual(
+        expect.objectContaining({
+          id: "accepted-debt-localstorage-e2e",
+          kind: "accepted_debt",
+          adviceStatus: "handled",
+          pressure: "medium",
+          support: "localized",
+          adequacyStatus: "under_structured",
+          acceptedRisk: expect.stringContaining("Data cannot be shared"),
+        }),
+      );
+      expect(rerun.assessment.revisitAlerts).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            decisionId: "accepted-debt-localstorage-e2e",
+            matchedCondition: expect.stringContaining("reopened"),
+          }),
+        ]),
+      );
+      expect(rerun.assessment.architectureDebt).toContainEqual(
+        expect.objectContaining({
+          concern: "data_storage",
+          status: "reopened",
+        }),
+      );
+      const decisionsJsonl = readFileSync(rerun.artifactPaths!.decisionsJsonl, "utf8");
+      expect(decisionsJsonl).toContain("\"kind\":\"accepted_debt\"");
+      expect(decisionsJsonl).toContain("\"adviceStatus\":\"handled\"");
+      expect(decisionsJsonl).toContain("\"pressure\":\"medium\"");
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }

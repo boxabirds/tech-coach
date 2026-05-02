@@ -10,11 +10,21 @@ import type {
   MemorySignal,
   SignalEnvelope,
 } from "./telemetryTypes.js";
+import type {
+  ArchitectureConcern,
+  ComplexityPressureLevel,
+  StructuralSupportLevel,
+  StructureAdequacyStatus,
+} from "./baselineTypes.js";
 
 export type DecisionRecordSource = "user" | "coach" | "agent";
+export type DecisionRecordKind = "decision" | "accepted_debt";
+export type DecisionAdviceStatus = "active" | "handled" | "superseded";
 
 export type DecisionRecord = {
   id: string;
+  kind: DecisionRecordKind;
+  adviceStatus: DecisionAdviceStatus;
   concern: string;
   decision: string;
   context: string;
@@ -25,6 +35,11 @@ export type DecisionRecord = {
   revisitIf: string[];
   createdAt: string;
   source: DecisionRecordSource;
+  pressure?: ComplexityPressureLevel;
+  support?: StructuralSupportLevel;
+  adequacyStatus?: StructureAdequacyStatus;
+  acceptedRisk?: string;
+  evidenceRefs?: string[];
 };
 
 export type MemoryDiagnostic = {
@@ -203,6 +218,12 @@ export function validateDecisionRecord(
   }
 
   requireString(value, "id", path, issues);
+  if (!isDecisionKind(value.kind)) {
+    issues.push({ field: `${path}.kind`, message: "must be decision or accepted_debt" });
+  }
+  if (!isDecisionAdviceStatus(value.adviceStatus)) {
+    issues.push({ field: `${path}.adviceStatus`, message: "must be active, handled, or superseded" });
+  }
   requireString(value, "concern", path, issues);
   requireString(value, "decision", path, issues);
   requireString(value, "context", path, issues);
@@ -223,6 +244,9 @@ export function validateDecisionRecord(
   }
   if (!isDecisionSource(value.source)) {
     issues.push({ field: `${path}.source`, message: "must be user, coach, or agent" });
+  }
+  if (value.kind === "accepted_debt") {
+    validateAcceptedDebtFields(value, path, issues);
   }
 
   return issues;
@@ -253,6 +277,8 @@ export function decisionRecordsToMemorySignals(
     ...(options.correlationId ? { correlationId: options.correlationId } : {}),
     payload: {
       id: record.id,
+      kind: record.kind,
+      adviceStatus: record.adviceStatus,
       concern: record.concern,
       decision: record.decision,
       context: record.context,
@@ -262,6 +288,11 @@ export function decisionRecordsToMemorySignals(
       source: record.source,
       createdAt: record.createdAt,
       revisitIf: record.revisitIf,
+      ...(record.pressure ? { pressure: record.pressure } : {}),
+      ...(record.support ? { support: record.support } : {}),
+      ...(record.adequacyStatus ? { adequacyStatus: record.adequacyStatus } : {}),
+      ...(record.acceptedRisk ? { acceptedRisk: record.acceptedRisk } : {}),
+      ...(record.evidenceRefs ? { evidenceRefs: record.evidenceRefs } : {}),
       evidence: memoryEvidence(record),
     },
   }));
@@ -272,9 +303,16 @@ export function decisionRecordsToSummaries(
 ): DecisionRecordSummary[] {
   return records.map((record) => ({
     id: record.id,
+    kind: record.kind,
+    adviceStatus: record.adviceStatus,
     concern: record.concern,
     decision: record.decision,
     revisitIf: record.revisitIf,
+    ...(record.pressure ? { pressure: record.pressure } : {}),
+    ...(record.support ? { support: record.support } : {}),
+    ...(record.adequacyStatus ? { adequacyStatus: record.adequacyStatus } : {}),
+    ...(record.acceptedRisk ? { acceptedRisk: record.acceptedRisk } : {}),
+    ...(record.evidenceRefs ? { evidenceRefs: record.evidenceRefs } : {}),
   }));
 }
 
@@ -297,6 +335,8 @@ export function withMemorySignals(
 
 function memoryEvidence(record: DecisionRecord): string[] {
   return [
+    `kind: ${record.kind}`,
+    `advice_status: ${record.adviceStatus}`,
     `decision: ${record.decision}`,
     `concern: ${record.concern}`,
     `context: ${record.context}`,
@@ -304,7 +344,83 @@ function memoryEvidence(record: DecisionRecord): string[] {
     `risks: ${record.risks.join(", ")}`,
     `state: ${record.state}`,
     `revisit_if: ${record.revisitIf.join(", ")}`,
-  ];
+    record.pressure ? `pressure: ${record.pressure}` : undefined,
+    record.support ? `support: ${record.support}` : undefined,
+    record.adequacyStatus ? `adequacy_status: ${record.adequacyStatus}` : undefined,
+    record.acceptedRisk ? `accepted_risk: ${record.acceptedRisk}` : undefined,
+    record.evidenceRefs ? `evidence_refs: ${record.evidenceRefs.join(", ")}` : undefined,
+  ].filter((item): item is string => Boolean(item));
+}
+
+function validateAcceptedDebtFields(
+  value: Record<string, unknown>,
+  path: string,
+  issues: ProtocolValidationIssue[],
+): void {
+  if (!isArchitectureConcern(value.concern)) {
+    issues.push({
+      field: `${path}.concern`,
+      message: "must be a valid architecture concern for accepted_debt",
+    });
+  }
+  if (!isComplexityPressureLevel(value.pressure)) {
+    issues.push({ field: `${path}.pressure`, message: "must be a valid complexity pressure level" });
+  }
+  if (!isStructuralSupportLevel(value.support)) {
+    issues.push({ field: `${path}.support`, message: "must be a valid structural support level" });
+  }
+  if (value.adequacyStatus !== "under_structured") {
+    issues.push({ field: `${path}.adequacyStatus`, message: "must be under_structured for accepted_debt" });
+  }
+  requireString(value, "acceptedRisk", path, issues);
+  if (!isStringArray(value.evidenceRefs) || value.evidenceRefs.length === 0) {
+    issues.push({ field: `${path}.evidenceRefs`, message: "must be a non-empty array of strings" });
+  }
+}
+
+function isDecisionKind(value: unknown): value is DecisionRecordKind {
+  return value === "decision" || value === "accepted_debt";
+}
+
+function isDecisionAdviceStatus(value: unknown): value is DecisionAdviceStatus {
+  return value === "active" || value === "handled" || value === "superseded";
+}
+
+function isArchitectureConcern(value: unknown): value is ArchitectureConcern {
+  return typeof value === "string"
+    && [
+      "application_shape",
+      "package_boundary",
+      "entrypoint",
+      "state_ownership",
+      "data_storage",
+      "authentication",
+      "authorization",
+      "deployment",
+      "api_contract",
+      "background_job",
+      "testing",
+      "observability",
+      "risk_hotspot",
+      "unknown",
+    ].includes(value);
+}
+
+function isComplexityPressureLevel(value: unknown): value is ComplexityPressureLevel {
+  return value === "none" || value === "low" || value === "medium" || value === "high";
+}
+
+function isStructuralSupportLevel(value: unknown): value is StructuralSupportLevel {
+  return typeof value === "string"
+    && [
+      "absent",
+      "localized",
+      "named",
+      "bounded",
+      "contracted",
+      "operationalized",
+      "unknown",
+    ].includes(value);
 }
 
 function requireString(

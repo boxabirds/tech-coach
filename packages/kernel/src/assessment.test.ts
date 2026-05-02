@@ -12,7 +12,7 @@ import {
 import { localStorageDecision, revisitEvent } from "./__fixtures__/memory/scenarios.js";
 
 describe("assessArchitecture", () => {
-  it("assesses legacy event input by converting it through telemetry", () => {
+  it("assesses normalized host event input by converting it through telemetry", () => {
     const result = assessArchitecture({
       event: {
         ...brownfieldEvent,
@@ -154,6 +154,89 @@ describe("assessArchitecture", () => {
           matchedCondition: "sharing",
         }),
       ]),
+    );
+  });
+
+  it("resurfaces accepted architecture debt when current structure pressure outgrows the accepted baseline", () => {
+    const result = assessArchitecture({
+      event: {
+        ...revisitEvent,
+        userRequest: "Rename the saved-project panel",
+        recentRequests: [],
+        repoSignals: {
+          status: "present",
+          evidence: [
+            "Saved projects write to localStorage and now need team collaboration.",
+          ],
+        },
+      },
+      memoryRecords: [localStorageDecision],
+    });
+
+    expect(result.revisitAlerts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          decisionId: "decision-localstorage-projects",
+          matchedCondition: "pressure increased from medium to high",
+        }),
+      ]),
+    );
+    expect(result.architectureDebt).toContainEqual(
+      expect.objectContaining({
+        concern: "data_storage",
+        status: "accepted_debt",
+        acceptedRisk: localStorageDecision.acceptedRisk,
+      }),
+    );
+  });
+
+  it("keeps handled accepted debt quiet until it reopens and marks resolved debt stale", () => {
+    const reopened = assessArchitecture({
+      event: {
+        ...revisitEvent,
+        userRequest: "Rename the saved-project panel",
+        recentRequests: [],
+        repoSignals: {
+          status: "present",
+          evidence: [
+            "Saved projects write to localStorage and now need team collaboration.",
+          ],
+        },
+      },
+      memoryRecords: [{
+        ...localStorageDecision,
+        adviceStatus: "handled",
+      }],
+    });
+
+    expect(reopened.architectureDebt).toContainEqual(
+      expect.objectContaining({
+        concern: "data_storage",
+        status: "reopened",
+      }),
+    );
+
+    const stale = assessArchitecture({
+      event: {
+        ...revisitEvent,
+        userRequest: "Assess the saved project repository boundary",
+        recentRequests: [],
+        changedFiles: ["src/lib/projectRepository.ts"],
+        repoSignals: {
+          status: "present",
+          evidence: [
+            "projectRepository repository boundary stores saved projects and exposes a persistence adapter.",
+          ],
+        },
+      },
+      memoryRecords: [localStorageDecision],
+    });
+
+    expect(stale.architectureDebt).toContainEqual(
+      expect.objectContaining({
+        concern: "data_storage",
+        status: "stale",
+      }),
     );
   });
 

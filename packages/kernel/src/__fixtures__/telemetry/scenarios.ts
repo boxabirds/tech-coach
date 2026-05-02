@@ -23,9 +23,16 @@ export const telemetryEvent: CoachEventEnvelope = {
   priorDecisions: [
     {
       id: "decision-localstorage-projects",
-      concern: "project persistence",
+      kind: "accepted_debt",
+      adviceStatus: "active",
+      concern: "data_storage",
       decision: "Use localStorage while the project is single-user",
       revisitIf: ["sharing", "sync", "user accounts"],
+      pressure: "medium",
+      support: "localized",
+      adequacyStatus: "under_structured",
+      acceptedRisk: "Data cannot be shared across users",
+      evidenceRefs: ["fact-data_storage-localstorage"],
     },
   ],
   optionalSignals: [],

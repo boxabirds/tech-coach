@@ -320,16 +320,50 @@ function addMemorySignalFromDecision(
     correlationId,
     payload: {
       id: decision.id,
+      kind: readDecisionString(decision, "kind"),
+      adviceStatus: readDecisionString(decision, "adviceStatus"),
       concern: decision.concern,
       decision: decision.decision,
       revisitIf,
+      ...optionalDecisionFields(decision),
       evidence: [
+        readDecisionString(decision, "kind") ? `kind: ${readDecisionString(decision, "kind")}` : undefined,
+        readDecisionString(decision, "adviceStatus") ? `advice_status: ${readDecisionString(decision, "adviceStatus")}` : undefined,
         decision.decision,
         decision.concern ? `concern: ${decision.concern}` : undefined,
         revisitIf.length > 0 ? `revisit_if: ${revisitIf.join(", ")}` : undefined,
+        readDecisionString(decision, "pressure") ? `pressure: ${readDecisionString(decision, "pressure")}` : undefined,
+        readDecisionString(decision, "support") ? `support: ${readDecisionString(decision, "support")}` : undefined,
+        readDecisionString(decision, "adequacyStatus") ? `adequacy_status: ${readDecisionString(decision, "adequacyStatus")}` : undefined,
       ].filter((value): value is string => typeof value === "string"),
     },
   });
+}
+
+function optionalDecisionFields(
+  decision: DecisionRecordSummary,
+): Record<string, unknown> {
+  const fields: Record<string, unknown> = {};
+  for (const key of ["adviceStatus", "pressure", "support", "adequacyStatus", "acceptedRisk"] as const) {
+    const value = readDecisionString(decision, key);
+    if (value) {
+      fields[key] = value;
+    }
+  }
+  if (Array.isArray(decision.evidenceRefs)) {
+    fields.evidenceRefs = decision.evidenceRefs.filter((item): item is string =>
+      typeof item === "string" && item.trim().length > 0
+    );
+  }
+  return fields;
+}
+
+function readDecisionString(
+  decision: DecisionRecordSummary,
+  key: string,
+): string | undefined {
+  const value = decision[key];
+  return typeof value === "string" && value.trim().length > 0 ? value : undefined;
 }
 
 function addSignalFromOptionalEvidence(

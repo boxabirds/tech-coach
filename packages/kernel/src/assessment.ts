@@ -3,12 +3,15 @@ import {
   type ArchitectureBaseline,
   type ArchitectureConcern,
   type BaselineQuestion,
+  type ComplexityPressureLevel,
   type StructureAdequacyAssessment,
+  type StructuralSupportLevel,
 } from "./baselineTypes.js";
 import { planBaselineInterviewQuestions } from "./baselineInterview.js";
 import { claimsForTelemetry } from "./claims.js";
 import type { ArchitectureClaim } from "./claimTypes.js";
 import {
+  assertDecisionRecord,
   decisionRecordsToSummaries,
   type DecisionRecord,
 } from "./memory.js";
@@ -123,10 +126,14 @@ export function assessArchitecture(input: AssessmentInput): AssessmentResult {
     telemetry: normalized.telemetry,
     claims,
   });
+  const structureReasoning = baseline.concerns
+    .map((concern) => concern.adequacy)
+    .filter((adequacy): adequacy is StructureAdequacyAssessment => Boolean(adequacy));
   const revisitAlerts = checkRevisit({
     event,
     records: normalized.memoryRecords,
     telemetry: normalized.telemetry,
+    structureReasoning,
   });
   const principleGuidance = buildPrincipleGuidance(baseline);
   const policy = selectArchitecturePolicy({
@@ -135,9 +142,6 @@ export function assessArchitecture(input: AssessmentInput): AssessmentResult {
     revisitAlerts,
     principleGuidance,
   });
-  const structureReasoning = baseline.concerns
-    .map((concern) => concern.adequacy)
-    .filter((adequacy): adequacy is StructureAdequacyAssessment => Boolean(adequacy));
   const architectureDebt = buildArchitectureDebt(structureReasoning, normalized.memoryRecords);
 
   return {
@@ -170,9 +174,7 @@ export function normalizeAssessmentInput(
   if (isTelemetryBundle(input)) {
     const telemetry = assertValidTelemetryBundle(input);
     const raw = input as ArchitecturalTelemetryBundle & { memoryRecords?: unknown };
-    const memoryRecords = Array.isArray(raw.memoryRecords)
-      ? raw.memoryRecords.filter((record): record is DecisionRecord => isRecord(record))
-      : [];
+    const memoryRecords = readDecisionRecords(raw.memoryRecords);
     return {
       event: eventFromTelemetry(telemetry),
       telemetry,
@@ -186,9 +188,7 @@ export function normalizeAssessmentInput(
     ]);
   }
 
-  const memoryRecords = Array.isArray(input.memoryRecords)
-    ? input.memoryRecords.filter((record): record is DecisionRecord => isRecord(record))
-    : [];
+  const memoryRecords = readDecisionRecords(input.memoryRecords);
 
   if (isTelemetryBundle(input.telemetry)) {
     const telemetry = assertValidTelemetryBundle(input.telemetry);
@@ -316,23 +316,62 @@ function buildArchitectureDebt(
   records: DecisionRecord[],
 ): ArchitectureDebtAssessment[] {
   const results: ArchitectureDebtAssessment[] = [];
+  const acceptedRecords = records.filter((record) => record.kind === "accepted_debt");
   for (const item of adequacy) {
     if (item.status !== "under_structured") {
       continue;
     }
-    const accepted = records.find((record) =>
-      concernMatches(record.concern, item.concern)
+    const accepted = acceptedRecords.find((record) =>
+      record.adviceStatus === "active"
+      && concernMatches(record.concern, item.concern)
       && record.revisitIf.length > 0
+    );
+    const reopened = acceptedRecords.find((record) =>
+      record.adviceStatus === "handled"
+      && concernMatches(record.concern, item.concern)
+      && adequacyOutgrew(record, item)
     );
     results.push(debtAssessmentFor({
       adequacy: item,
-      accepted: Boolean(accepted),
-      rationale: accepted?.reason,
-      acceptedRisk: accepted?.risks.join("; "),
-      revisitIf: accepted?.revisitIf,
+      accepted: Boolean(accepted ?? reopened),
+      status: reopened ? "reopened" : undefined,
+      rationale: (accepted ?? reopened)?.reason,
+      acceptedRisk: (accepted ?? reopened)?.acceptedRisk,
+      revisitIf: (accepted ?? reopened)?.revisitIf,
     }));
   }
+  for (const record of acceptedRecords) {
+    const current = adequacy.find((item) => concernMatches(record.concern, item.concern));
+    if (current && current.status !== "under_structured") {
+      results.push(debtAssessmentFor({
+        adequacy: current,
+        accepted: true,
+        stale: true,
+        rationale: record.reason,
+        acceptedRisk: record.acceptedRisk,
+        revisitIf: record.revisitIf,
+      }));
+    }
+  }
   return results;
+}
+
+function adequacyOutgrew(
+  record: DecisionRecord,
+  adequacy: StructureAdequacyAssessment,
+): boolean {
+  if (!record.pressure || !record.support) {
+    return false;
+  }
+  return pressureRankFor(adequacy.pressure) > pressureRankFor(record.pressure)
+    || supportRankFor(adequacy.support) < supportRankFor(record.support);
+}
+
+function readDecisionRecords(value: unknown): DecisionRecord[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map((record) => assertDecisionRecord(record));
 }
 
 function evidenceFromSignal(signal: SignalEnvelope<unknown>): AssessmentEvidence {
@@ -455,4 +494,36 @@ function concernMatches(recordConcern: string, concern: ArchitectureConcern): bo
 
 function containsAny(value: string, needles: string[]): boolean {
   return needles.some((needle) => value.includes(needle));
+}
+
+function pressureRankFor(level: ComplexityPressureLevel): number {
+  switch (level) {
+    case "none":
+      return 0;
+    case "low":
+      return 1;
+    case "medium":
+      return 2;
+    case "high":
+      return 3;
+  }
+}
+
+function supportRankFor(level: StructuralSupportLevel): number {
+  switch (level) {
+    case "absent":
+      return 0;
+    case "localized":
+      return 1;
+    case "named":
+      return 2;
+    case "bounded":
+      return 3;
+    case "contracted":
+      return 4;
+    case "operationalized":
+      return 5;
+    case "unknown":
+      return -1;
+  }
 }

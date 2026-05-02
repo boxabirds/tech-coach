@@ -28,6 +28,8 @@ describe("decision memory validation", () => {
     expect(validateDecisionRecord(invalidDecision)).toEqual(
       expect.arrayContaining([
         { field: "record.id", message: "must be a non-empty string" },
+        { field: "record.kind", message: "must be decision or accepted_debt" },
+        { field: "record.adviceStatus", message: "must be active, handled, or superseded" },
         { field: "record.reason", message: "must be a non-empty string" },
         { field: "record.risks", message: "must be a non-empty array of strings" },
         { field: "record.revisitIf", message: "must be a non-empty array of strings" },
@@ -52,15 +54,44 @@ describe("decision memory validation", () => {
       correlationId: "turn-memory",
       payload: {
         id: "decision-localstorage-projects",
+        kind: "accepted_debt",
+        adviceStatus: "active",
         reason: localStorageDecision.reason,
         risks: localStorageDecision.risks,
         state: "Exploratory",
+        pressure: "medium",
+        support: "localized",
+        adequacyStatus: "under_structured",
+        acceptedRisk: localStorageDecision.acceptedRisk,
+        evidenceRefs: ["fact-data_storage-localstorage"],
         revisitIf: ["sharing", "sync", "user accounts"],
         evidence: expect.arrayContaining([
+          "kind: accepted_debt",
+          "advice_status: active",
+          "pressure: medium",
+          "support: localized",
+          "adequacy_status: under_structured",
           "revisit_if: sharing, sync, user accounts",
         ]),
       },
     });
+  });
+
+  it("rejects accepted architecture debt without explicit adequacy evidence", () => {
+    expect(validateDecisionRecord({
+      ...localStorageDecision,
+      pressure: undefined,
+      support: undefined,
+      acceptedRisk: "",
+      evidenceRefs: [],
+    })).toEqual(
+      expect.arrayContaining([
+        { field: "record.pressure", message: "must be a valid complexity pressure level" },
+        { field: "record.support", message: "must be a valid structural support level" },
+        { field: "record.acceptedRisk", message: "must be a non-empty string" },
+        { field: "record.evidenceRefs", message: "must be a non-empty array of strings" },
+      ]),
+    );
   });
 
   it("adds memory summaries to existing event context without replacing current signals", () => {
@@ -69,9 +100,16 @@ describe("decision memory validation", () => {
     expect(event.memoryRefs).toContain("decision-localstorage-projects");
     expect(event.priorDecisions).toContainEqual({
       id: "decision-localstorage-projects",
-      concern: "project persistence",
+      kind: "accepted_debt",
+      adviceStatus: "active",
+      concern: "data_storage",
       decision: "Use localStorage while saved projects are single-user only",
       revisitIf: ["sharing", "sync", "user accounts"],
+      pressure: "medium",
+      support: "localized",
+      adequacyStatus: "under_structured",
+      acceptedRisk: localStorageDecision.acceptedRisk,
+      evidenceRefs: ["fact-data_storage-localstorage"],
     });
     expect(event.changedFiles).toEqual(revisitEvent.changedFiles);
   });

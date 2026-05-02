@@ -69,7 +69,7 @@ describe("checkRevisit", () => {
     expect(alerts).toEqual(expect.arrayContaining([
       expect.objectContaining({
         decisionId: "decision-localstorage-projects",
-        concern: "project persistence",
+        concern: "data_storage",
         decision: localStorageDecision.decision,
         reason: localStorageDecision.reason,
         risk: localStorageDecision.risks,
@@ -121,6 +121,119 @@ describe("checkRevisit", () => {
         }),
       ]),
     );
+  });
+
+  it("revisits accepted architecture debt when pressure rises without a text trigger", () => {
+    const alerts = checkRevisit({
+      event: nonMatchingEvent,
+      records: [localStorageDecision],
+      structureReasoning: [{
+        concern: "data_storage",
+        pressure: "high",
+        support: "localized",
+        status: "under_structured",
+        reason: "data_storage has high pressure from durable_state and collaboration.",
+        nextAction: "insert_boundary",
+        evidenceRefs: ["fact-storage-sharing"],
+        confidence: "high",
+      }],
+    });
+
+    expect(alerts).toEqual([
+      expect.objectContaining({
+        decisionId: "decision-localstorage-projects",
+        concern: "data_storage",
+        matchedCondition: "pressure increased from medium to high",
+        signalIds: ["fact-storage-sharing"],
+        currentEvidence: expect.arrayContaining([
+          "pressure: high",
+          "support: localized",
+        ]),
+        recommendedAction: "Replace substrate",
+      }),
+    ]);
+  });
+
+  it("does not revisit ordinary decisions through adequacy pressure", () => {
+    const alerts = checkRevisit({
+      event: nonMatchingEvent,
+      records: [authShortcutDecision],
+      structureReasoning: [{
+        concern: "authentication",
+        pressure: "high",
+        support: "absent",
+        status: "under_structured",
+        reason: "authentication has high pressure from security-sensitive public access.",
+        nextAction: "run_review",
+        evidenceRefs: ["fact-auth-public"],
+        confidence: "high",
+      }],
+    });
+
+    expect(alerts).toEqual([]);
+  });
+
+  it("suppresses handled accepted debt until pressure or support changes", () => {
+    const handled = {
+      ...localStorageDecision,
+      adviceStatus: "handled" as const,
+    };
+
+    expect(checkRevisit({
+      event: revisitEvent,
+      records: [handled],
+      structureReasoning: [{
+        concern: "data_storage",
+        pressure: "medium",
+        support: "localized",
+        status: "under_structured",
+        reason: "data_storage remains at the accepted pressure and support.",
+        nextAction: "insert_boundary",
+        evidenceRefs: ["fact-storage-same"],
+        confidence: "high",
+      }],
+    })).toEqual([]);
+
+    expect(checkRevisit({
+      event: nonMatchingEvent,
+      records: [handled],
+      structureReasoning: [{
+        concern: "data_storage",
+        pressure: "high",
+        support: "localized",
+        status: "under_structured",
+        reason: "data_storage pressure increased through collaboration.",
+        nextAction: "insert_boundary",
+        evidenceRefs: ["fact-storage-reopened"],
+        confidence: "high",
+      }],
+    })).toEqual([
+      expect.objectContaining({
+        matchedCondition: "handled accepted debt reopened: pressure increased from medium to high",
+      }),
+    ]);
+  });
+
+  it("suppresses superseded accepted debt even when pressure changes", () => {
+    const alerts = checkRevisit({
+      event: nonMatchingEvent,
+      records: [{
+        ...localStorageDecision,
+        adviceStatus: "superseded",
+      }],
+      structureReasoning: [{
+        concern: "data_storage",
+        pressure: "high",
+        support: "localized",
+        status: "under_structured",
+        reason: "data_storage pressure increased through collaboration.",
+        nextAction: "insert_boundary",
+        evidenceRefs: ["fact-storage-superseded"],
+        confidence: "high",
+      }],
+    });
+
+    expect(alerts).toEqual([]);
   });
 
   it("returns multiple alerts for multiple matching decisions", () => {

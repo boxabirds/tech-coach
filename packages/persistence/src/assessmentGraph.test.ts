@@ -324,6 +324,8 @@ function fixtureResult(): CaptureAssessmentResult {
     skippedQuestions: [],
     decisions: [{
       id: "decision-auth",
+      kind: "decision",
+      adviceStatus: "active",
       concern: "authentication",
       context: "Authentication decision",
       decision: "Use GitHub OAuth for web login.",
