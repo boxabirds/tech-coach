@@ -89,7 +89,7 @@ For active architecture questions:
 4. Name the evidence areas that shaped the answer, such as storage,
    deployment, authentication, authorization, API contracts, package boundaries,
    runtime shape, testing, or observability.
-5. Ask at most two residual future-intent questions, and only if the answers
+5. Ask at most two follow-up intent questions, and only if the answers
    would materially change the recommendation.
 
 Do not lead with a broad clarification interview. Do not ask the user to
@@ -99,7 +99,7 @@ available.
 
 For example, if the user asks how to create a local-only version after a
 baseline exists, first use the stored storage, deployment, auth, and boundary
-claims to propose the likely direction. Then ask only residual intent questions
+claims to propose the likely direction. Then ask only follow-up intent questions
 such as whether local-only means fully offline or no hosted-service dependency.
 
 ## Tool Selection

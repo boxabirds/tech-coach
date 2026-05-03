@@ -75,6 +75,67 @@ name = "taskmgr-production"
     expect(result.evidence.join("\n")).not.toContain("docs/research/noise.md");
   });
 
+  it("does not treat non-authorization role labels as authorization facts", () => {
+    const repo = tempRepo({
+      "docs/adr/010-pbr-material-skins.md": `
+| Material | Credits | Relative | Game Role |
+| --- | --- | --- | --- |
+| Ice | 1 | 1x | Common, early game staple |
+| Gold | 100 | 100x | Rare, objective material |
+`,
+    });
+
+    const result = documentationProvider.collect(context(repo, [
+      "docs/adr/010-pbr-material-skins.md",
+    ])) as OptionalSignalResult;
+
+    expect((result.facts ?? []).map((fact) => fact.kind)).not.toContain("authz.membership_role");
+    expect(result.evidence.join("\n")).not.toContain("authorization");
+  });
+
+  it("still recognizes role documentation when it has access-control context", () => {
+    const repo = tempRepo({
+      "docs/security/access.md": "Authenticated users can have admin and editor roles for project resources.",
+    });
+
+    const result = documentationProvider.collect(context(repo, [
+      "docs/security/access.md",
+    ])) as OptionalSignalResult;
+
+    expect(result.facts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "authz.membership_role" }),
+      ]),
+    );
+  });
+
+  it("treats canonical design architecture docs as high-priority architecture evidence", () => {
+    const repo = tempRepo({
+      "docs/design/tech-architecture.md": "# Tech Architecture\n\nCanonical MVP tech stack and material pipeline.",
+      "docs/adr/001-old-choice.md": "# ADR\n\nArchitecture decision record.",
+    });
+
+    const result = documentationProvider.collect(context(repo, [
+      "docs/adr/001-old-choice.md",
+      "docs/design/tech-architecture.md",
+    ])) as OptionalSignalResult;
+
+    expect(result.details?.documentsRead).toEqual([
+      "docs/design/tech-architecture.md",
+      "docs/adr/001-old-choice.md",
+    ]);
+    expect(result.facts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          concern: "application_shape",
+          kind: "doc.architecture",
+          confidence: "high",
+          provenance: [expect.objectContaining({ path: "docs/design/tech-architecture.md" })],
+        }),
+      ]),
+    );
+  });
+
   it("makes inventory inclusion and noise exclusion explicit", () => {
     const repo = tempRepo({
       "src/index.ts": "export const value = 1;",

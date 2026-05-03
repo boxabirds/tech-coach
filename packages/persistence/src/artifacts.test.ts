@@ -54,7 +54,7 @@ describe("assessment artifact language", () => {
                   freshness: "current",
                   confidence: "high",
                 }],
-                summary: "Package or workspace boundaries are visible. Evidence: Runtime boundary: React/TypeScript UI depends on Rust/WASM or native-module code.",
+                summary: "Package or workspace boundaries are visible. Evidence: Runtime boundary candidates: React/TypeScript frontend and Rust/WASM or native-module markers are both present.",
               },
             ],
           },
@@ -74,7 +74,7 @@ describe("assessment artifact language", () => {
     expect(markdown).toContain("The durable source of truth is the database recorded below");
     expect(markdown).toContain("Store: /repo/.ceetrix/tech-lead/tech-lead.db");
     expect(markdown).toContain("package_boundary (medium)");
-    expect(markdown).toContain("React/TypeScript UI depends on Rust/WASM");
+    expect(markdown).toContain("React/TypeScript frontend and Rust/WASM or native-module markers are both present");
     expect(markdown).toContain("- Add test harness: Repository shape shows a runtime or package boundary.");
   });
 

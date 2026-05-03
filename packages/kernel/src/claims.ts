@@ -130,6 +130,9 @@ export function inferArchitectureClaims(
       nodes.filter((node) => node.family === family)
     );
     const evidenceNodes = selectEvidenceNodes(rule, [...required, ...optional]);
+    if (!claimHasMinimumSupport(rule, evidenceNodes)) {
+      continue;
+    }
     const confidence = confidenceForClaim(rule, evidenceNodes);
     claims.push({
       id: stableId("claim", rule.concern, rule.subject),
@@ -363,7 +366,7 @@ function specializeClaim(rule: ClaimRule, nodes: ArchitectureEvidenceNode[]): st
     return "Deployment evidence points to configured hosted runtime services.";
   }
   if (rule.concern === "package_boundary" && text.includes("rust")) {
-    return "A frontend surface depends on a separate native, WASM, or compiled runtime boundary.";
+    return "A frontend surface and a native, WASM, or compiled runtime boundary are both visible.";
   }
   if (rule.concern === "package_boundary" && text.includes("package.swift")) {
     return "Application package boundaries are visible.";
@@ -376,6 +379,13 @@ function hasConcreteAuthorizationEvidence(nodes: ArchitectureEvidenceNode[]): bo
   const hasAuthzShape = /(membership|member|role|rbac|permission|user[-_ ]?projects?|admin|resource)/.test(text);
   const hasImplementationAnchor = /(\.test\.|tests?\/|migrations?\/|\.sql|src\/|workers\/|apps\/)/.test(text);
   return hasAuthzShape && hasImplementationAnchor;
+}
+
+function claimHasMinimumSupport(rule: ClaimRule, nodes: ArchitectureEvidenceNode[]): boolean {
+  if (rule.concern === "authorization") {
+    return hasConcreteAuthorizationEvidence(nodes);
+  }
+  return true;
 }
 
 function hasConcreteAuthenticationEvidence(nodes: ArchitectureEvidenceNode[]): boolean {
@@ -408,7 +418,7 @@ function concernFromText(text: string): ArchitectureConcern | undefined {
   if (/(auth|oauth|login|session|api[-_ ]?key|token)/.test(normalized)) {
     return "authentication";
   }
-  if (/(role|permission|membership|authorization|rbac)/.test(normalized)) {
+  if (hasAuthorizationEvidenceText(normalized)) {
     return "authorization";
   }
   if (/(migration|database|sqlite|postgres|d1|kv|storage)/.test(normalized)) {
@@ -435,7 +445,7 @@ function familyFromText(text: string): ClaimEvidenceFamily {
   if (/(oauth|github)/.test(normalized)) return "external_provider";
   if (/session/.test(normalized)) return "session";
   if (/(api[-_ ]?key|token)/.test(normalized)) return "credential";
-  if (/(role|permission|membership|authorization|rbac)/.test(normalized)) return "authorization";
+  if (hasAuthorizationEvidenceText(normalized)) return "authorization";
   if (/(migration|\.sql|schema)/.test(normalized)) return "schema";
   if (/(kv|d1|binding|wrangler)/.test(normalized)) return "binding";
   if (/(worker|deploy|appcast|notari|signing)/.test(normalized)) return "deployment_config";
@@ -466,6 +476,14 @@ function normalizeConcern(value: string): ArchitectureConcern {
   return allowed.includes(value as ArchitectureConcern)
     ? value as ArchitectureConcern
     : "unknown";
+}
+
+function hasAuthorizationEvidenceText(text: string): boolean {
+  if (/(authorization|membership|permission|rbac|access[-_ ]?control)/.test(text)) {
+    return true;
+  }
+  return /\broles?\b/.test(text)
+    && /(auth|login|session|oauth|users?|admin|tenant|project|resource|account|access)/.test(text);
 }
 
 function normalizeFamily(value: string): ClaimEvidenceFamily {

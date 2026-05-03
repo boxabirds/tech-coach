@@ -123,7 +123,7 @@ function shapeEvidence(files: string[]): string[] {
     ]).join(", ")}`);
   }
   if ((hasTsx || hasReactEntrypoint) && (hasRustCrates || hasRustManifest || hasWasmMarkers)) {
-    evidence.push("Runtime boundary: React/TypeScript UI depends on Rust/WASM or native-module code.");
+    evidence.push("Runtime boundary candidates: React/TypeScript frontend and Rust/WASM or native-module markers are both present.");
   }
   if (hasWasmMarkers) {
     evidence.push(`WASM/package boundary markers: ${sample(files, [

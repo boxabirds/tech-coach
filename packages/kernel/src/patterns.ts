@@ -245,7 +245,7 @@ function securityReviewPattern(
     concern: concern.concern,
     principles,
     addNow: "Run a focused security review of the identity, authorization, and session boundary before depending on it.",
-    doNotAddYet: "Do not introduce a new auth framework or role model until the current boundary and residual risk are named.",
+    doNotAddYet: "Do not introduce a new auth framework or role model until the current boundary and remaining risk are named.",
     evidence,
     missingEvidence: evidence.length > 0 ? [] : ["concrete identity or access-control evidence"],
     confidence: patternConfidence(concern, evidence),

@@ -60,7 +60,7 @@ describe("assessment principle guidance", () => {
             evidence: [
               "React/TypeScript frontend shape: src/main.tsx, src/components/Waveform.tsx",
               "Rust crate/native module shape: crates/dsp/Cargo.toml, crates/dsp/src/lib.rs",
-              "Runtime boundary: React/TypeScript UI depends on Rust/WASM or native-module code.",
+              "Runtime boundary candidates: React/TypeScript frontend and Rust/WASM or native-module markers are both present.",
               "Test surface evidence: tests/dsp-boundary.test.ts",
             ],
           },
@@ -94,7 +94,7 @@ describe("assessment principle guidance", () => {
             evidence: [
               "React/TypeScript frontend shape: src/main.tsx, src/components/Waveform.tsx",
               "Rust crate/native module shape: crates/dsp/Cargo.toml, crates/dsp/src/lib.rs",
-              "Runtime boundary: React/TypeScript UI depends on Rust/WASM or native-module code.",
+              "Runtime boundary candidates: React/TypeScript frontend and Rust/WASM or native-module markers are both present.",
               "Test surface evidence: tests/dsp-boundary.test.ts",
             ],
           },

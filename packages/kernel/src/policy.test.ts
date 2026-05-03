@@ -222,7 +222,7 @@ describe("explicit architecture policy", () => {
         userRequest: "Capture a passive repository baseline.",
         optionalSignals: [
           signal("shape", "architecture_shape", "high", [
-            "Runtime boundary: React/TypeScript UI depends on Rust/WASM or native-module code.",
+            "Runtime boundary candidates: React/TypeScript frontend and Rust/WASM or native-module markers are both present.",
           ]),
           signal("auth", "architecture_claim", "high", [
             "OAuth session login with authorization role access control.",

@@ -392,7 +392,7 @@ function followUpEngagementResponse(event: ClaudeLifecycleEvent): HookResponse |
     message: [
       "Tech Lead baseline context is available for this architecture question.",
       "Before advising, use the Tech Lead MCP graph: call architecture.query_assessment_graph or architecture.get_assessment_node for relevant claims and evidence.",
-      "Give a grounded default recommendation first, then ask at most two residual future-intent questions if they would materially change the recommendation.",
+      "Give a grounded default recommendation first, then ask at most two follow-up intent questions if they would materially change the recommendation.",
     ].join("\n"),
   };
 }

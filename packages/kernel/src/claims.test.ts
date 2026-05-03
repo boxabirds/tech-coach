@@ -128,6 +128,18 @@ describe("architecture claims", () => {
     expect(claims.filter((claim) => claim.concern === "authorization")).toEqual([]);
   });
 
+  it("does not promote documentation-only role labels into authorization claims", () => {
+    const telemetry = telemetryFromEvidence({
+      event: eventWithEvidence([
+        "authorization.authorization: authorization documentation: docs/adr/010-pbr-material-skins.md",
+      ]),
+    });
+
+    const claims = inferArchitectureClaims(buildArchitectureEvidenceGraph(telemetry));
+
+    expect(claims.filter((claim) => claim.concern === "authorization")).toEqual([]);
+  });
+
   it("suppresses broad authentication interview questions when a claim already answers them", () => {
     const result = assessArchitecture({
       event: eventWithEvidence([

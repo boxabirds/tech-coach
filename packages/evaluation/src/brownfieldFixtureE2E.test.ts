@@ -32,11 +32,20 @@ describe("self-contained brownfield fixture baselines", () => {
         expect(capture.assessment.action).toBe("Continue");
         expect(capture.openQuestions).toEqual([]);
 
+        const artifacts = loadArtifacts(repo);
         const comparison = compareClaims(
           { ...baseline, path: repo },
-          loadArtifacts(repo),
+          artifacts,
         );
         expect(comparison.failures).toEqual([]);
+        if (baseline.name === "runtime-boundary") {
+          expect(artifacts.evidenceText.join("\n")).toContain(
+            "React/TypeScript frontend and Rust/WASM or native-module markers are both present",
+          );
+          expect(artifacts.evidenceText.join("\n")).not.toContain(
+            "React/TypeScript UI depends on Rust/WASM",
+          );
+        }
       } finally {
         rmSync(repo, { recursive: true, force: true });
       }

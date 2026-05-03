@@ -7,7 +7,7 @@ import type { OptionalSignalProvider, OptionalSignalResult, SignalContext } from
 const maxDocFiles = 24;
 const maxReadBytes = 48_000;
 
-const docPathPattern = /(^README\.md$|^docs\/(self-hosting|ops|operations|runbooks?|deployment|staging|production|security|architecture|adr|decisions?)(\/|\.|$)|(^|\/)(runbook|deployment|staging|production|self-hosting|architecture)\.md$)/i;
+const docPathPattern = /(^README\.md$|^docs\/(self-hosting|ops|operations|runbooks?|deployment|staging|production|security|architecture|design|adr|decisions?)(\/|\.|$)|(^|\/)(runbook|deployment|staging|production|self-hosting|architecture|tech-architecture|technical-architecture)\.md$)/i;
 const noisyDocPattern = /^docs\/(research|archive|reports|scratch|pocs)\//i;
 
 export const documentationProvider: OptionalSignalProvider = {
@@ -15,7 +15,7 @@ export const documentationProvider: OptionalSignalProvider = {
   collect(context: SignalContext): OptionalSignalResult {
     const files = Array.from(new Set(context.knownFiles ?? context.changedFiles))
       .filter((file) => docPathPattern.test(file) && !noisyDocPattern.test(file))
-      .sort()
+      .sort(compareDocumentPriority)
       .slice(0, maxDocFiles);
     const facts = files.flatMap((file) => factsForDocument(context.cwd, file));
     if (files.length === 0 || facts.length === 0) {
@@ -93,6 +93,19 @@ function factsForDocument(cwd: string, path: string): ArchitectureEvidenceFact[]
       confidence: "medium",
     }));
   }
+  if (isArchitectureDocument(path, content)) {
+    facts.push(makeFact({
+      id: `doc.architecture.${path}`,
+      concern: "application_shape",
+      family: "unknown",
+      kind: "doc.architecture",
+      label: "architecture documentation",
+      summary: "Bounded documentation describes architecture, design basis, or system shape.",
+      path,
+      excerpt: excerptFor(content, /architecture|design|tech stack|mvp|pipeline|module|runtime|adr|decision/i),
+      confidence: canonicalArchitectureDocument(path) ? "high" : "medium",
+    }));
+  }
   if (/github oauth|oauth|login|session|cookie/i.test(content)) {
     facts.push(makeFact({
       id: `doc.auth.${path}`,
@@ -106,7 +119,7 @@ function factsForDocument(cwd: string, path: string): ArchitectureEvidenceFact[]
       confidence: "medium",
     }));
   }
-  if (/role|membership|permission|rbac|access control/i.test(content)) {
+  if (hasAuthorizationDocumentation(content)) {
     facts.push(makeFact({
       id: `doc.authz.${path}`,
       concern: "authorization",
@@ -115,7 +128,7 @@ function factsForDocument(cwd: string, path: string): ArchitectureEvidenceFact[]
       label: "authorization documentation",
       summary: "Bounded documentation describes role, membership, or permission boundaries.",
       path,
-      excerpt: excerptFor(content, /role|membership|permission|rbac|access control/i),
+      excerpt: excerptFor(content, /authorization|membership|permission|rbac|access control|\broles?\b/i),
       confidence: "medium",
     }));
   }
@@ -177,6 +190,38 @@ function readBounded(path: string): string | undefined {
 function excerptFor(content: string, pattern: RegExp): string | undefined {
   const line = content.split(/\r?\n/).find((candidate) => pattern.test(candidate));
   return line?.trim().slice(0, 220);
+}
+
+function compareDocumentPriority(left: string, right: string): number {
+  return documentPriority(right) - documentPriority(left) || left.localeCompare(right);
+}
+
+function documentPriority(path: string): number {
+  if (canonicalArchitectureDocument(path)) return 100;
+  if (/^docs\/design\//i.test(path)) return 80;
+  if (/^docs\/architecture/i.test(path)) return 70;
+  if (/^docs\/adr\//i.test(path)) return 50;
+  if (/^README\.md$/i.test(path)) return 40;
+  return 10;
+}
+
+function canonicalArchitectureDocument(path: string): boolean {
+  return /(^|\/)(tech-architecture|technical-architecture|architecture)\.md$/i.test(path);
+}
+
+function isArchitectureDocument(path: string, content: string): boolean {
+  return canonicalArchitectureDocument(path)
+    || /^docs\/(design|architecture|adr|decisions?)(\/|\.|$)/i.test(path)
+    || /architecture|technical design|tech stack|system shape|runtime boundary/i.test(content);
+}
+
+function hasAuthorizationDocumentation(content: string): boolean {
+  if (/authorization|membership|permission|rbac|access control/i.test(content)) {
+    return true;
+  }
+  const hasRoleLanguage = /\broles?\b/i.test(content);
+  const hasAuthContext = /auth|login|session|oauth|users?|admin|tenant|project|resource|account/i.test(content);
+  return hasRoleLanguage && hasAuthContext;
 }
 
 function stableId(value: string): string {

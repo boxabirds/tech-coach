@@ -48,7 +48,7 @@ The coach must pass all of these behavioral checks:
   complexity threshold.
 - It gives concrete action and a "do not add yet" boundary.
 - It does not ask the user questions answered by repository evidence.
-- It asks only residual future-intent questions, and explains why the answer
+- It asks only follow-up intent questions, and explains why the answer
   changes the next move.
 - It preserves accepted architecture debt and revisits it only when complexity
   pressure changes.

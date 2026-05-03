@@ -326,7 +326,7 @@ function classifyEvidence(
     });
   }
 
-  if (containsAny(text, ["permission", "role", "rbac", "authorization", "access control"])) {
+  if (hasAuthorizationEvidenceText(text)) {
     add("authorization", "Authorization behavior is visible", [
       "security",
     ], {
@@ -720,6 +720,14 @@ function uniqueSources(sources: EvidenceSourceRef[]): EvidenceSourceRef[] {
 
 function containsAny(text: string, terms: string[]): boolean {
   return terms.some((term) => text.includes(term));
+}
+
+function hasAuthorizationEvidenceText(text: string): boolean {
+  if (containsAny(text, ["authorization", "membership", "permission", "rbac", "access control"])) {
+    return true;
+  }
+  return /\broles?\b/.test(text)
+    && /(auth|login|session|oauth|users?|admin|tenant|project|resource|account|access)/.test(text);
 }
 
 function textMatchesCondition(text: string, condition: string): boolean {
