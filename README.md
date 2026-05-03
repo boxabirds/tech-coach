@@ -52,6 +52,86 @@ Then run:
 For Codex, follow [the Codex install section](docs/alpha-1.md#codex-install).
 Codex needs a local MCP config block and a copied skill file.
 
+## Claude Code Support
+
+Claude Code is the primary Alpha 1 target.
+
+The practical setup: run Claude Code with this repo as a local plugin, then use
+`/tech-coach` inside a project you want reviewed. The plugin stores assessment
+state in that project under `.ceetrix/tech-lead/`.
+
+Technical detail: the Claude Code plugin exposes a root command, an MCP server,
+and lifecycle hooks:
+
+- `/tech-coach` from `commands/tech-coach.md`
+- `tech-coach` MCP server from `.mcp.json`
+- local launchers in `bin/`
+- hook wrappers in `hooks/`
+- install-time configuration in `.claude-plugin/plugin.json`
+
+### Quick Trial
+
+Use this when someone wants to try Tech Coach without installing it globally:
+
+```sh
+git clone https://github.com/boxabirds/tech-coach.git
+cd tech-coach
+bun install
+claude --plugin-dir .
+```
+
+Inside Claude Code, run:
+
+```text
+/tech-coach what should I do next?
+```
+
+Expected result: Claude Code should show one command, `/tech-coach`. It should
+not show namespaced duplicates such as `/tech-coach:tech-coach`.
+
+### User Install
+
+Use this when someone wants `/tech-coach` available in new Claude Code sessions.
+This creates a local Claude plugin marketplace that points at the cloned repo:
+
+```sh
+export TECH_COACH_HOME="/path/to/tech-coach"
+export TECH_COACH_MARKETPLACE="$HOME/.tech-coach-alpha-marketplace"
+
+mkdir -p "$TECH_COACH_MARKETPLACE/.claude-plugin"
+ln -sfn "$TECH_COACH_HOME" "$TECH_COACH_MARKETPLACE/tech-coach"
+
+cat > "$TECH_COACH_MARKETPLACE/.claude-plugin/marketplace.json" <<'JSON'
+{
+  "name": "tech-coach-alpha-local",
+  "owner": {
+    "name": "Tech Coach Alpha"
+  },
+  "plugins": [
+    {
+      "name": "tech-coach",
+      "source": "./tech-coach",
+      "description": "Architecture coaching for Claude Code with local MCP tools, a deterministic CLI, and host-mediated interview guidance.",
+      "version": "0.1.0-alpha.1"
+    }
+  ]
+}
+JSON
+
+claude plugin marketplace add "$TECH_COACH_MARKETPLACE" --scope user
+claude plugin install tech-coach@tech-coach-alpha-local --scope user
+```
+
+Verify:
+
+```sh
+claude plugin list
+claude plugin validate "$TECH_COACH_HOME"
+```
+
+Restart Claude Code after installing or updating the plugin. Claude Code caches
+plugin commands per session.
+
 ## Core Direction
 
 The preferred shape is:
@@ -82,7 +162,7 @@ timing:
 Introduce the smallest structure that protects the next likely change.
 ```
 
-## Try The Claude Code Plugin
+## Claude Code Plugin Contents
 
 From this repo, run:
 
