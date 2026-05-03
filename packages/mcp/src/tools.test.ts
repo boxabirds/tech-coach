@@ -20,6 +20,8 @@ import {
   thresholdTelemetry,
 } from "./__fixtures__/inputs.js";
 
+const bunIt = process.versions.bun ? it : it.skip;
+
 describe("architecture MCP tool contracts", () => {
   it("lists stable architecture tool descriptors", () => {
     expect(listArchitectureTools().map((tool) => tool.name)).toEqual([
@@ -383,7 +385,7 @@ describe("architecture MCP tool contracts", () => {
     }
   });
 
-  it("reviews privacy-safe usage events recorded by MCP tools", () => {
+  bunIt("reviews privacy-safe usage events recorded by MCP tools", () => {
     const repo = tempRoot();
 
     try {

@@ -161,5 +161,6 @@ function quietAssessment(): AssessmentResult {
     doNotAdd: [],
     memory: { status: "absent", decisionCount: 0 },
     principleGuidance: [],
+    temporalBrief: { past: [], current: [], future: [], uncertain: [] },
   };
 }

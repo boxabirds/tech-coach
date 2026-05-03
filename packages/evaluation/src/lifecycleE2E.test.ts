@@ -162,5 +162,6 @@ function assessmentFixture(repo: string): AssessmentResult {
     }],
     revisitAlerts: [],
     principleGuidance: [],
+    temporalBrief: { past: [], current: [], future: [], uncertain: [] },
   };
 }

@@ -316,13 +316,18 @@ export function collectClaudeHookTelemetry(
 }
 
 function shouldSurfaceAssessment(assessment: AssessmentResult): boolean {
-  if (assessment.intervention === "silent" || assessment.action === "Continue") {
+  const hasTemporalNextActionBasis = assessment.interactionContext === "requested_next_action"
+    && ((assessment.temporalBrief?.future.length ?? 0) > 0 || (assessment.temporalBrief?.past.length ?? 0) > 0);
+  if (assessment.intervention === "silent" || (assessment.action === "Continue" && !hasTemporalNextActionBasis)) {
     return false;
   }
   if (assessment.revisitAlerts.length > 0 || assessment.questions.length > 0) {
     return true;
   }
   if (assessment.principleGuidance.some((guidance) => guidance.patterns.length > 0)) {
+    return true;
+  }
+  if (hasTemporalNextActionBasis) {
     return true;
   }
   if (assessment.evidence.some((item) => item.category === "risk_hotspot" || item.category === "changed_file_spread")) {
@@ -390,9 +395,10 @@ function followUpEngagementResponse(event: ClaudeLifecycleEvent): HookResponse |
   return {
     effect: "inject",
     message: [
-      "Tech Lead baseline context is available for this architecture question.",
-      "Before advising, use the Tech Lead MCP graph: call architecture.query_assessment_graph or architecture.get_assessment_node for relevant claims and evidence.",
-      "Give a grounded default recommendation first, then ask at most two follow-up intent questions if they would materially change the recommendation.",
+      "You already have useful project context for this question. Use that context before answering so the advice is tied to what is actually in the repo.",
+      "If you include technical detail, explain the practical point first, then name the supporting evidence or tool.",
+      "Technical detail: call architecture.query_assessment_graph or architecture.get_assessment_node for relevant claims and evidence.",
+      "Give a plain-English default recommendation first, then ask at most two follow-up intent questions if they would materially change the recommendation.",
     ].join("\n"),
   };
 }
@@ -425,35 +431,91 @@ export function effectForAssessment(
 
 function formatAssessmentSignpost(assessment: AssessmentResult): string {
   const lines = [
-    `Architecture signpost: ${assessment.action}.`,
+    "This change looks like it needs a little architecture attention before you continue.",
+    "",
+    `Recommended move: ${assessment.action}.`,
     assessment.reason,
   ];
 
-  const guidance = assessment.principleGuidance.find((item) => item.patterns.length > 0);
-  const pattern = guidance?.patterns[0];
+  const guidance = selectedGuidance(assessment);
+  const pattern = selectedPattern(assessment, guidance);
   if (pattern) {
-    lines.push(`Add now: ${pattern.addNow}`);
-    lines.push(`Do not add yet: ${pattern.doNotAddYet}`);
+    lines.push("");
+    lines.push(`What to add now: ${pattern.addNow}`);
+    lines.push(`What to leave out for now: ${pattern.doNotAddYet}`);
   } else if (assessment.doNotAdd.length > 0) {
-    lines.push(`Do not add yet: ${assessment.doNotAdd[0]}`);
+    lines.push("");
+    lines.push(`What to leave out for now: ${assessment.doNotAdd[0]}`);
+  }
+
+  const temporal = temporalLines(assessment);
+  if (temporal.length > 0) {
+    lines.push("");
+    lines.push("Time basis:");
+    lines.push(...temporal);
   }
 
   const evidence = assessment.evidence.slice(0, 3).map((item) => `- ${item.summary}`);
   if (evidence.length > 0) {
-    lines.push("Evidence:");
+    lines.push("");
+    lines.push("What I noticed:");
     lines.push(...evidence);
   }
 
   const questions = assessment.questions.slice(0, 3);
   if (questions.length > 0) {
-    lines.push("Ask the user before depending on this assumption:");
+    lines.push("");
+    lines.push("Ask the user before depending on this:");
     for (const question of questions) {
-      lines.push(`- [${question.id}] ${question.prompt}`);
+      lines.push(`- ${question.prompt}`);
     }
-    lines.push("Preserve the question IDs and apply answers through the Tech Lead MCP tools.");
+    lines.push("");
+    lines.push("Technical detail: keep the structured question ids from interviewRequired for follow-up tool calls; do not print those ids to the user.");
   }
 
   return lines.join("\n");
+}
+
+function temporalLines(assessment: AssessmentResult): string[] {
+  const brief = assessment.temporalBrief;
+  if (!brief) {
+    return [];
+  }
+  const lines: string[] = [];
+  if (brief.future.length > 0) {
+    lines.push(`- Future intent: ${brief.future[0]}`);
+  }
+  if (brief.current.length > 0) {
+    lines.push(`- Current system: ${brief.current[0]}`);
+  }
+  if (brief.past.length > 0) {
+    lines.push(`- Past context: ${brief.past[0]}`);
+  }
+  if (brief.uncertain.length > 0) {
+    lines.push(`- Uncertain work: ${brief.uncertain[0]}`);
+  }
+  return lines.slice(0, 3);
+}
+
+function selectedGuidance(assessment: AssessmentResult): AssessmentResult["principleGuidance"][number] | undefined {
+  const concern = assessment.policy?.selected.concern;
+  if (!concern) {
+    return undefined;
+  }
+  return assessment.principleGuidance.find((item) => item.concern === concern);
+}
+
+function selectedPattern(
+  assessment: AssessmentResult,
+  guidance: AssessmentResult["principleGuidance"][number] | undefined,
+): AssessmentResult["principleGuidance"][number]["patterns"][number] | undefined {
+  if (!guidance) {
+    return undefined;
+  }
+  const patternId = assessment.policy?.selected.patternId;
+  return patternId
+    ? guidance.patterns.find((pattern) => pattern.pattern === patternId)
+    : guidance.patterns[0];
 }
 
 function formatSessionContext(context: string): string {
@@ -463,7 +525,7 @@ function formatSessionContext(context: string): string {
     .filter((line) => line.trim().length > 0)
     .slice(0, 12)
     .join("\n");
-  return `Tech Lead architecture context:\n${compact}`;
+  return `Here is the saved project context to use before answering:\n${compact}`;
 }
 
 function readDefaultMemoryContext(cwd: string): string | undefined {

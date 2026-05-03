@@ -1,0 +1,17 @@
+#!/usr/bin/env sh
+set -eu
+
+ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+HOOK_ARTIFACT="$ROOT_DIR/dist/codex-hook.js"
+HOOK_SOURCE="$ROOT_DIR/packages/codex-hooks/src/hookCli.ts"
+
+if [ -f "$HOOK_SOURCE" ] && command -v bun >/dev/null 2>&1; then
+  exec bun "$HOOK_SOURCE" "$@"
+fi
+
+if [ -f "$HOOK_ARTIFACT" ]; then
+  exec node "$HOOK_ARTIFACT" "$@"
+fi
+
+echo "Missing bundled runtime artifact: dist/codex-hook.js, and bun is not available. Run the Codex hook from a checkout with bun or build the hook artifact first." >&2
+exit 1

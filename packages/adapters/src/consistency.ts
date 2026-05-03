@@ -17,14 +17,16 @@ import {
   type AssessmentToolResult,
 } from "../../mcp/src/tools.js";
 import { assessClaudeCodeEvent, type ClaudeCodeEventInput } from "./claude.js";
+import { assessCodexEvent, type CodexEventInput } from "./codex.js";
 import { assessGenericCiEvent, type GenericCiEventInput } from "./generic.js";
 
-export type PortableInterface = "cli" | "mcp" | "claude" | "generic_ci";
+export type PortableInterface = "cli" | "mcp" | "claude" | "codex" | "generic_ci";
 
 export type PortableAssessmentCase =
   | { interface: "cli"; input: unknown }
   | { interface: "mcp"; input: unknown }
   | { interface: "claude"; input: ClaudeCodeEventInput }
+  | { interface: "codex"; input: CodexEventInput }
   | { interface: "generic_ci"; input: GenericCiEventInput };
 
 export type PortableAssessmentOutput = {
@@ -115,7 +117,7 @@ export function applyAnswersForInterface(
 export function checkAnswerSemanticsConsistency(
   output: PortableAssessmentOutput,
   answers: BaselineAnswer[],
-  interfaces: PortableInterface[] = ["cli", "mcp", "claude", "generic_ci"],
+  interfaces: PortableInterface[] = ["cli", "mcp", "claude", "codex", "generic_ci"],
 ): { ok: boolean; projections: Record<string, StableAnswerSemanticsProjection>; mismatches: GuidanceMismatch[] } {
   const projections: Record<string, StableAnswerSemanticsProjection> = {};
   for (const target of interfaces) {
@@ -169,6 +171,8 @@ function runRawAssessment(testCase: PortableAssessmentCase): AssessmentResult {
     }
     case "claude":
       return assessClaudeCodeEvent(testCase.input).assessment;
+    case "codex":
+      return assessCodexEvent(testCase.input).assessment;
     case "generic_ci":
       return assessGenericCiEvent(testCase.input).assessment;
   }

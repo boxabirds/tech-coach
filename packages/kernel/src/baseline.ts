@@ -368,7 +368,7 @@ function classifyEvidence(
     });
   }
 
-  if (item.category === "test_posture" || containsAny(text, ["vitest", "playwright", "test", "coverage", "test surface"])) {
+  if (item.category === "test_posture" || hasTestingEvidenceText(text)) {
     add("testing", "Test posture evidence is visible", [], {
       complexity: "low",
       solutionVisibility: "high",
@@ -421,6 +421,9 @@ function addChangedFileSpread(
   if (event.changedFiles.length < 4) {
     return;
   }
+  if (!hasCurrentImplementationChange(event.changedFiles, event.userRequest)) {
+    return;
+  }
   const roots = new Set(event.changedFiles.map((file) => file.split("/")[0]));
   if (roots.size < 2 && event.changedFiles.length < 6) {
     return;
@@ -442,6 +445,26 @@ function addChangedFileSpread(
     irreversibility: "medium",
     solutionVisibility: "low",
     planningHorizon: "high",
+  });
+}
+
+function hasCurrentImplementationChange(
+  changedFiles: string[],
+  userRequest: string | undefined,
+): boolean {
+  const request = userRequest?.toLowerCase() ?? "";
+  return changedFiles.some((file) => {
+    const lower = file.toLowerCase();
+    if (request.includes(lower)) {
+      return true;
+    }
+    if (/^pocs?\//.test(lower) || /(^|\/)(prototype|experiment|lab)s?\//.test(lower)) {
+      return false;
+    }
+    if (/^docs\/(adr|design|architecture)\//.test(lower)) {
+      return false;
+    }
+    return /(^|\/)(src|packages|apps|workers|crates|tests?|__tests__)\/|(^|\/)(package\.json|cargo\.toml|package\.swift|wrangler\.toml)/.test(lower);
   });
 }
 
@@ -742,6 +765,23 @@ function textMatchesCondition(text: string, condition: string): boolean {
     return true;
   }
   return false;
+}
+
+function hasTestingEvidenceText(text: string): boolean {
+  return containsAny(text, [
+    "vitest",
+    "playwright",
+    "test script",
+    "test status",
+    "test surface",
+    "unit test",
+    "integration test",
+    "e2e",
+    ".test.",
+    ".spec.",
+    "tests/",
+    "__tests__",
+  ]);
 }
 
 function repeatedRequestPressure(event: CoachEventEnvelope): boolean {

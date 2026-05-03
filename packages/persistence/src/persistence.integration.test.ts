@@ -34,7 +34,7 @@ describe("repo-local persistence integration", () => {
       expect(statSync(result.storePath).size).toBeGreaterThan(0);
       expect(result.artifactPaths).toBeDefined();
       expect(readFileSync(result.artifactPaths!.latestAssessmentMd, "utf8")).toContain(
-        "Ceetrix Tech Lead Assessment",
+        "Tech Lead Assessment",
       );
       expect(JSON.parse(readFileSync(result.artifactPaths!.questionsJson, "utf8"))).toMatchObject({
         runId: result.runId,

@@ -239,7 +239,7 @@ describe("persistence E2E workflows", () => {
         ]),
       );
       const latestMarkdown = readFileSync(capture.artifactPaths!.latestAssessmentMd, "utf8");
-      expect(latestMarkdown).toContain("Observed Architecture Shape");
+      expect(latestMarkdown).toContain("What The Repo Looks Like");
       expect(latestMarkdown).toContain("Baseline Readout");
       expect(latestMarkdown).not.toContain("Blocked By Open Questions");
       expect(latestMarkdown).toContain("React/TypeScript");
@@ -255,6 +255,78 @@ describe("persistence E2E workflows", () => {
       });
       expect(activeCapture.assessment.interactionContext).toBe("pending_change_assessment");
       expect(activeCapture.assessment.action).toBe("Add test harness");
+      const activeNextActions = readFileSync(activeCapture.artifactPaths!.nextActionsMd, "utf8");
+      expect(activeNextActions).toContain("package_boundary/add_targeted_test_harness");
+      expect(activeNextActions).toContain("React/TypeScript to Rust/WASM boundary");
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  maybeIt("persists temporal evidence so old dirty POCs do not outrank architecture docs", async () => {
+    const repo = tempRepo();
+    try {
+      const capture = await callMcp<CaptureAssessmentResult>("architecture.capture_assessment", {
+        cwd: repo,
+        event: {
+          host: "persistence-e2e",
+          event: "UserPromptSubmit",
+          cwd: repo,
+          userRequest: "what should I do next",
+          recentRequests: ["what should I do next"],
+          changedFiles: [
+            "docs/adr/005-wasm-material-evaluation.md",
+            "pocs/am-ship-5-scout-skiff-jets/package.json",
+            "pocs/am-ship-5-scout-skiff-jets/src/main.ts",
+            "pocs/am-ship-5-scout-skiff-jets/src/lab/renderer.ts",
+            "pocs/am-ship-5-scout-skiff-jets/src/lab/ui.ts",
+          ],
+          repoSignals: { status: "present", evidence: ["known files: 5"] },
+          memoryRefs: [],
+          priorDecisions: [],
+          optionalSignals: [{
+            source: "documentation",
+            status: "present",
+            category: "architecture_claim",
+            freshness: "current",
+            confidence: "high",
+            evidence: [
+              "application_shape.unknown: architecture documentation: docs/design/tech-architecture.md",
+            ],
+            details: {
+              temporalEvidence: [{
+                path: "docs/design/tech-architecture.md",
+                timeframe: "future",
+                role: "architecture_basis",
+                summary: "Bounded documentation describes architecture, design basis, or system shape.",
+              }, {
+                path: "pocs/am-ship-5-scout-skiff-jets/package.json",
+                timeframe: "past",
+                role: "experiment",
+                summary: "Uncommitted file status is historical context, not proof of active direction.",
+              }],
+            },
+          }],
+        },
+        now: "2026-05-01T11:00:50.000Z",
+        responseDetail: "full",
+      });
+
+      expect(capture.assessment.action).toBe("Continue");
+      expect(capture.assessment.reason).toContain("Future-facing architecture evidence");
+      expect(capture.assessment.temporalBrief?.future.join("\n")).toContain("docs/design/tech-architecture.md");
+      expect(capture.assessment.temporalBrief?.past.join("\n")).toContain("pocs/am-ship-5-scout-skiff-jets/package.json");
+
+      const latestMarkdown = readFileSync(capture.artifactPaths!.latestAssessmentMd, "utf8");
+      expect(latestMarkdown).toContain("## Time Basis");
+      expect(latestMarkdown).toContain("Future intent: docs/design/tech-architecture.md");
+      expect(latestMarkdown).toContain("Past context: pocs/am-ship-5-scout-skiff-jets/package.json");
+      expect(latestMarkdown).toContain("Do not treat old experiments or dirty status as active project direction");
+
+      const evidenceJson = readFileSync(capture.artifactPaths!.evidenceJson, "utf8");
+      expect(evidenceJson).toContain("\"temporalBrief\"");
+      expect(evidenceJson).toContain("\"future\"");
+      expect(evidenceJson).toContain("\"past\"");
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }

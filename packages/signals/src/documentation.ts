@@ -1,7 +1,13 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ArchitectureConcern, BaselineConfidence } from "../../kernel/src/baselineTypes.js";
-import type { ArchitectureEvidenceFact, ArchitectureFactKind, ClaimEvidenceFamily } from "../../kernel/src/claimTypes.js";
+import type {
+  ArchitectureEvidenceFact,
+  ArchitectureFactKind,
+  ClaimEvidenceFamily,
+  EvidenceRole,
+  EvidenceTimeframe,
+} from "../../kernel/src/claimTypes.js";
 import type { OptionalSignalProvider, OptionalSignalResult, SignalContext } from "./index.js";
 
 const maxDocFiles = 24;
@@ -38,6 +44,7 @@ export const documentationProvider: OptionalSignalProvider = {
       evidence: facts.map(formatFactEvidence),
       details: {
         documentsRead: files,
+        temporalEvidence: summarizeTemporalEvidence(facts),
         boundedBy: { maxDocFiles, maxReadBytes },
       },
       facts,
@@ -160,6 +167,7 @@ function makeFact(input: {
   confidence: BaselineConfidence;
   metadata?: Record<string, unknown>;
 }): ArchitectureEvidenceFact {
+  const temporal = temporalForDocumentFact(input.path, input.kind);
   return {
     id: stableId(input.id),
     concern: input.concern,
@@ -170,6 +178,8 @@ function makeFact(input: {
     source: "documentation",
     confidence: input.confidence,
     freshness: "current",
+    timeframe: temporal.timeframe,
+    role: temporal.role,
     provenance: [{ path: input.path, ...(input.excerpt ? { excerpt: input.excerpt } : {}) }],
     ...(input.metadata ? { metadata: input.metadata } : {}),
   };
@@ -226,4 +236,44 @@ function hasAuthorizationDocumentation(content: string): boolean {
 
 function stableId(value: string): string {
   return value.replace(/[^a-zA-Z0-9:_./-]+/g, "-").replace(/-+/g, "-");
+}
+
+function temporalForDocumentFact(
+  path: string,
+  kind: ArchitectureFactKind,
+): { timeframe: EvidenceTimeframe; role: EvidenceRole } {
+  if (kind === "doc.architecture" || /^docs\/(design|architecture)(\/|\.|$)/i.test(path)) {
+    return { timeframe: "future", role: "architecture_basis" };
+  }
+  if (/^docs\/adr\//i.test(path)) {
+    return { timeframe: "past", role: "decision_record" };
+  }
+  if (kind === "doc.runbook") {
+    return { timeframe: "current", role: "repository_shape" };
+  }
+  if (kind === "test.surface") {
+    return { timeframe: "current", role: "test_evidence" };
+  }
+  return { timeframe: "current", role: "repository_shape" };
+}
+
+function summarizeTemporalEvidence(
+  facts: ArchitectureEvidenceFact[],
+): Array<{ path?: string; timeframe: EvidenceTimeframe; role: EvidenceRole; summary: string }> {
+  const seen = new Set<string>();
+  return facts.flatMap((fact) =>
+    fact.provenance.map((item) => ({
+      path: item.path,
+      timeframe: fact.timeframe ?? "uncertain",
+      role: fact.role ?? "repository_shape",
+      summary: fact.summary,
+    }))
+  ).filter((item) => {
+    const key = `${item.path ?? ""}:${item.timeframe}:${item.role}:${item.summary}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  }).slice(0, 12);
 }

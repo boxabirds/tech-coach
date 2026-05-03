@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mkdtempSync } from "node:fs";
@@ -66,7 +66,7 @@ describe("Claude lifecycle hook adapter", () => {
     });
 
     expect(response.effect).toBe("inject");
-    expect(response.message).toContain("Tech Lead architecture context");
+    expect(response.message).toContain("Here is the saved project context to use before answering:");
     expect(response.message).toContain("Action: Insert boundary");
   });
 
@@ -119,9 +119,9 @@ describe("Claude lifecycle hook adapter", () => {
     );
 
     expect(response.effect).toBe("inject");
-    expect(response.message).toContain("Tech Lead baseline context is available");
+    expect(response.message).toContain("You already have useful project context for this question.");
     expect(response.message).toContain("architecture.query_assessment_graph");
-    expect(response.message).toContain("grounded default recommendation first");
+    expect(response.message).toContain("plain-English default recommendation first");
   });
 
   it("records privacy-safe usage events for hook engagement", () => {
@@ -193,7 +193,7 @@ describe("Claude lifecycle hook adapter", () => {
     expect(response.effect).toBe("none");
   });
 
-  it("injects a pre-planning signpost and preserves interview question IDs", () => {
+  it("injects plain-English pre-planning guidance and preserves interview question IDs internally", () => {
     const assessment = assessmentFixture({
       action: "Insert boundary",
       reason: "Prior persistence shortcut matched a sharing revisit trigger.",
@@ -224,9 +224,11 @@ describe("Claude lifecycle hook adapter", () => {
     );
 
     expect(response.effect).toBe("inject");
-    expect(response.message).toContain("Architecture signpost: Insert boundary.");
-    expect(response.message).toContain("[question-data-sharing]");
-    expect(response.message).toContain("Preserve the question IDs");
+    expect(response.message).toMatch(/^This change looks like it needs a little architecture attention/);
+    expect(response.message).toContain("Recommended move: Insert boundary.");
+    expect(response.message).toContain("Does sharing need real multi-user access control?");
+    expect(response.message).not.toContain("[question-data-sharing]");
+    expect(response.message).toContain("Technical detail: keep the structured question ids");
     expect(response.interviewRequired?.map((question) => question.id)).toEqual([
       "question-data-sharing",
     ]);
@@ -302,6 +304,27 @@ describe("Claude lifecycle hook adapter", () => {
       action: "Continue",
       intervention: "note",
     });
+  });
+
+  it("stays quiet for greenfield product scoping in an empty repository", () => {
+    const repo = mkdtempSync(join(tmpdir(), "tech-lead-empty-greenfield-"));
+    mkdirSync(join(repo, ".ceetrix"), { recursive: true });
+    try {
+      const response = handleClaudeHookEvent({
+        hook_event_name: "UserPromptSubmit",
+        cwd: repo,
+        prompt: "help me make a miro clone",
+      });
+
+      expect(response.effect).toBe("none");
+      expect(response.audit).toMatchObject({
+        kind: "UserPromptSubmit",
+        effect: "none",
+        action: "Continue",
+      });
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
   });
 
   it("records compact audit records through an optional runtime sink", () => {
@@ -395,8 +418,97 @@ describe("Claude lifecycle hook adapter", () => {
     );
 
     expect(response.effect).toBe("inject");
-    expect(response.message).toContain("Architecture signpost: Split module.");
+    expect(response.message).toContain("This change looks like it needs a little architecture attention");
+    expect(response.message).toContain("Recommended move: Split module.");
     expect(response.message).toContain("Change touches src/storage.ts");
+  });
+
+  it("renders temporal basis in plain English when available", () => {
+    const response = handleClaudeHookEvent(
+      {
+        hook_event_name: "UserPromptSubmit",
+        cwd: process.cwd(),
+        prompt: "what should I do next",
+      },
+      { mode: "advisory" },
+      {
+        collectTelemetry: collectFixture,
+        assess: () => assessmentFixture({
+          action: "Continue",
+          reason: "Future-facing architecture evidence is available; use it as the planning anchor and current code as the feasibility check.",
+          interactionContext: "requested_next_action",
+          temporalBrief: {
+            future: ["docs/design/tech-architecture.md: Bounded documentation describes architecture."],
+            current: ["src/main.ts: Inventory includes src/main.ts"],
+            past: ["pocs/old-lab/package.json: Inventory includes pocs/old-lab/package.json"],
+            uncertain: [],
+          },
+        }),
+      },
+    );
+
+    expect(response.effect).toBe("inject");
+    expect(response.message).toContain("Time basis:");
+    expect(response.message).toContain("Future intent: docs/design/tech-architecture.md");
+    expect(response.message).toContain("Current system: src/main.ts");
+    expect(response.message).toContain("Past context: pocs/old-lab/package.json");
+  });
+
+  it("does not render unrelated package-boundary add-now text for broad reviews", () => {
+    const response = handleClaudeHookEvent(
+      {
+        hook_event_name: "UserPromptSubmit",
+        cwd: process.cwd(),
+        prompt: "what should I do next",
+      },
+      { mode: "advisory" },
+      {
+        collectTelemetry: collectFixture,
+        assess: () => assessmentFixture({
+          action: "Run review",
+          reason: "Current evidence shows broad change pressure.",
+          evidence: [{ source: "event.changedFiles", category: "changed_file_spread", summary: "Broad dirty tree." }],
+          policy: {
+            concerns: [],
+            selected: {
+              concern: "risk_hotspot",
+              action: "Run review",
+              intervention: "recommend",
+              reason: "Current evidence shows broad change pressure.",
+              thresholdCandidates: ["blast_radius"],
+              axes: {
+                complexity: "medium",
+                irreversibility: "medium",
+                solutionVisibility: "medium",
+                planningHorizon: "medium",
+              },
+              principleIds: [],
+              doNotAdd: [],
+              provisional: false,
+              requiresQuestion: false,
+            },
+          },
+          principleGuidance: [{
+            concern: "package_boundary",
+            principles: [],
+            patterns: [{
+              pattern: "add_targeted_test_harness",
+              concern: "package_boundary",
+              principleIds: [],
+              addNow: "Add a small integration test around the React/TypeScript to Rust/WASM boundary before changing behavior across it.",
+              doNotAddYet: "Do not split packages further.",
+              evidence: [],
+              missingEvidence: [],
+              confidence: "medium",
+            }],
+          }],
+        }),
+      },
+    );
+
+    expect(response.effect).toBe("inject");
+    expect(response.message).not.toContain("React/TypeScript to Rust/WASM boundary");
+    expect(response.message).not.toContain("What to add now:");
   });
 
   it("collects shell-created changed files for PostToolBatch telemetry", () => {
@@ -446,11 +558,11 @@ describe("Claude lifecycle hook adapter", () => {
   it("renders Claude-valid hook output for injected context and blocks", () => {
     expect(JSON.parse(renderClaudeHookOutput("UserPromptSubmit", {
       effect: "inject",
-      message: "Architecture signpost",
+      message: "This needs a small decision before you continue.",
     }))).toEqual({
       hookSpecificOutput: {
         hookEventName: "UserPromptSubmit",
-        additionalContext: "Architecture signpost",
+        additionalContext: "This needs a small decision before you continue.",
       },
     });
 
@@ -512,6 +624,7 @@ function assessmentFixture(overrides: Partial<AssessmentResult>): AssessmentResu
     questions: [],
     revisitAlerts: [],
     principleGuidance: [],
+    temporalBrief: { past: [], current: [], future: [], uncertain: [] },
     ...overrides,
   };
 }

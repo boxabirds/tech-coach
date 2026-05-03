@@ -158,6 +158,7 @@ function assessmentFixture(overrides: Partial<AssessmentResult> = {}): Assessmen
     questions: [],
     revisitAlerts: [],
     principleGuidance: [],
+    temporalBrief: { past: [], current: [], future: [], uncertain: [] },
     ...overrides,
   };
 }

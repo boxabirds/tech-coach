@@ -73,6 +73,36 @@ describe("architecture claims", () => {
     expect(claims.filter((claim) => claim.concern === "authentication")).toEqual([]);
   });
 
+  it("does not create package-boundary claims from POC package files alone", () => {
+    const telemetry = telemetryFromEvidence({
+      event: eventWithEvidence([
+        "changed file: pocs/am-ship-5-scout-skiff-jets/package.json",
+      ]),
+    });
+
+    const claims = inferArchitectureClaims(buildArchitectureEvidenceGraph(telemetry));
+
+    expect(claims.filter((claim) => claim.concern === "package_boundary")).toEqual([]);
+  });
+
+  it("still recognizes real workspace package boundaries", () => {
+    const telemetry = telemetryFromEvidence({
+      event: eventWithEvidence([
+        "package_boundary.package_boundary: package or workspace boundary: packages/audio-engine/package.json, packages/audio-engine/src/index.ts",
+      ]),
+    });
+
+    const claims = inferArchitectureClaims(buildArchitectureEvidenceGraph(telemetry));
+
+    expect(claims).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          concern: "package_boundary",
+        }),
+      ]),
+    );
+  });
+
   it("infers specific high-confidence authorization claims from membership, role, and test evidence", () => {
     const telemetry = telemetryFromEvidence({
       event: eventWithEvidence([

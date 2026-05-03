@@ -19,6 +19,11 @@ import {
   type ClaudeCodeEventInput,
 } from "./claude.js";
 import {
+  assessCodexEvent,
+  normalizeCodexEvent,
+  type CodexEventInput,
+} from "./codex.js";
+import {
   assessGenericCiEvent,
   normalizeGenericCiEvent,
   type GenericCiEventInput,
@@ -27,13 +32,14 @@ import {
 type PortabilityFixture = {
   event: CoachEventEnvelope;
   claude: ClaudeCodeEventInput;
+  codex: CodexEventInput;
   genericCi: GenericCiEventInput;
 };
 
 const fixture = readFixture("equivalent-assessment.json");
 
 describe("portable architecture guidance consistency", () => {
-  it("produces equivalent guidance across CLI, MCP, Claude, and generic CI adapters", () => {
+  it("produces equivalent guidance across CLI, MCP, Claude, Codex, and generic CI adapters", () => {
     const cases = equivalentCases();
     const result = checkGuidanceConsistency(cases);
 
@@ -43,6 +49,7 @@ describe("portable architecture guidance consistency", () => {
       "cli",
       "mcp",
       "claude",
+      "codex",
       "generic_ci",
     ]);
     for (const output of result.outputs) {
@@ -139,6 +146,17 @@ describe("portable architecture guidance consistency", () => {
       priorDecisions: [],
       optionalSignals: [],
     });
+    expect(normalizeCodexEvent({
+      cwd: "/repo",
+    })).toMatchObject({
+      host: "codex",
+      event: "UserPromptSubmit",
+      recentRequests: [],
+      changedFiles: [],
+      memoryRefs: [],
+      priorDecisions: [],
+      optionalSignals: [],
+    });
   });
 
   it("rejects schema mismatches before producing guidance", () => {
@@ -146,6 +164,10 @@ describe("portable architecture guidance consistency", () => {
       hook_event_name: "PostToolBatch",
     })).toThrow(/cwd: is required/);
     expect(() => normalizeGenericCiEvent({
+      cwd: "/repo",
+      changedFiles: ["src/app.ts", 42] as never,
+    })).toThrow(/changedFiles\[1\]: must be a string/);
+    expect(() => normalizeCodexEvent({
       cwd: "/repo",
       changedFiles: ["src/app.ts", 42] as never,
     })).toThrow(/changedFiles\[1\]: must be a string/);
@@ -166,6 +188,10 @@ describe("portable architecture guidance consistency", () => {
     })).toThrow(/repository\[0\]\.family: must be repository/);
     expect(() => assessGenericCiEvent({
       ...fixture.genericCi,
+      telemetry: malformedTelemetry as never,
+    })).toThrow(/repository\[0\]\.family: must be repository/);
+    expect(() => assessCodexEvent({
+      ...fixture.codex,
       telemetry: malformedTelemetry as never,
     })).toThrow(/repository\[0\]\.family: must be repository/);
   });
@@ -197,6 +223,7 @@ function equivalentCases(): PortableAssessmentCase[] {
     { interface: "cli", input: { event: fixture.event, telemetry } },
     { interface: "mcp", input: { event: fixture.event, telemetry } },
     { interface: "claude", input: { ...fixture.claude, telemetry } },
+    { interface: "codex", input: { ...fixture.codex, telemetry } },
     { interface: "generic_ci", input: { ...fixture.genericCi, telemetry } },
   ];
 }

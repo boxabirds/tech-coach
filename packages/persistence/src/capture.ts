@@ -437,6 +437,7 @@ function emptyAssessment(repoRoot: string, diagnostics: PersistenceDiagnostic[])
     questions: [],
     revisitAlerts: [],
     principleGuidance: [],
+    temporalBrief: { past: [], current: [], future: [], uncertain: [] },
   };
 }
 

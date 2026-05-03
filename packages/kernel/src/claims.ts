@@ -215,6 +215,8 @@ function evidenceNodesFromSignal(signal: SignalLike): ArchitectureEvidenceNode[]
       provenance: fact.provenance,
       confidence: fact.confidence,
       freshness: fact.freshness,
+      timeframe: fact.timeframe,
+      role: fact.role,
     })
   );
   const textNodes = evidence
@@ -275,6 +277,8 @@ function makeNode(input: {
   provenance?: ArchitectureFactProvenance[];
   confidence?: BaselineConfidence;
   freshness?: BaselineFreshness;
+  timeframe?: ArchitectureEvidenceNode["timeframe"];
+  role?: ArchitectureEvidenceNode["role"];
 }): ArchitectureEvidenceNode {
   return {
     id: input.factId
@@ -293,6 +297,8 @@ function makeNode(input: {
     source: input.signal.source,
     confidence: input.confidence ?? normalizeConfidence(input.signal.confidence),
     freshness: input.freshness ?? normalizeFreshness(input.signal.freshness),
+    ...(input.timeframe ? { timeframe: input.timeframe } : {}),
+    ...(input.role ? { role: input.role } : {}),
   };
 }
 
@@ -427,7 +433,7 @@ function concernFromText(text: string): ArchitectureConcern | undefined {
   if (/(deploy|worker|cloudflare|wrangler|production|appcast|notari|signing)/.test(normalized)) {
     return "deployment";
   }
-  if (/(package|workspace|runtime boundary|rust\/wasm|package\.swift|crates\/)/.test(normalized)) {
+  if (/(workspace|runtime boundary|rust\/wasm|package\.swift|crates\/|apps\/|packages\/|workers\/)/.test(normalized)) {
     return "package_boundary";
   }
   if (/(test|spec|e2e|harness)/.test(normalized)) {
@@ -449,7 +455,7 @@ function familyFromText(text: string): ClaimEvidenceFamily {
   if (/(migration|\.sql|schema)/.test(normalized)) return "schema";
   if (/(kv|d1|binding|wrangler)/.test(normalized)) return "binding";
   if (/(worker|deploy|appcast|notari|signing)/.test(normalized)) return "deployment_config";
-  if (/(package|workspace|apps\/|packages\/|workers\/|package\.swift)/.test(normalized)) return "package_boundary";
+  if (/(workspace|apps\/|packages\/|workers\/|package\.swift|crates\/)/.test(normalized)) return "package_boundary";
   if (/(rust|wasm|native)/.test(normalized)) return "runtime_boundary";
   if (/(test|spec|e2e)/.test(normalized)) return "test_surface";
   if (/(health|metric|logging|analytics)/.test(normalized)) return "observability";

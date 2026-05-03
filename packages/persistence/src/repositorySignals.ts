@@ -46,6 +46,7 @@ export function collectRepositoryTelemetry(
   const changedFiles = listChangedFiles(repoRoot);
   const request = input.request
     ?? "Capture a passive repository baseline.";
+  const testSummary = readTestSummary(repoRoot);
   const context: SignalContext = {
     cwd: repoRoot,
     knownFiles,
@@ -53,13 +54,12 @@ export function collectRepositoryTelemetry(
     changedFiles,
     userRequest: request,
     recentRequests: [request],
-    testSummary: readTestSummary(repoRoot),
+    testSummary,
   };
   const optionalSignals = [
     ...collectSynchronousProviders(context),
     ...collectRequiredCodeIntelligence(context, input),
   ];
-  const testSummary = readTestSummary(repoRoot);
   const event: CoachEventEnvelope = {
     host: "ceetrix-tech-lead",
     event: "brownfield-capture",
@@ -195,10 +195,10 @@ function listChangedFiles(repoRoot: string): string[] {
   ])).filter((file) => !isIgnoredProjectPath(file)).sort();
 }
 
-function readTestSummary(repoRoot: string): TestSummary {
+function readTestSummary(repoRoot: string): TestSummary | undefined {
   const packagePath = join(repoRoot, "package.json");
   if (!existsSync(packagePath)) {
-    return { status: "unknown", summary: "No package.json test script detected." };
+    return undefined;
   }
   try {
     const packageJson = JSON.parse(readFileSync(packagePath, "utf8")) as {

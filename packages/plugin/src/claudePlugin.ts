@@ -23,7 +23,7 @@ export type ClaudePluginAssetReport = {
   mcpConfig: Record<string, unknown>;
   hooksConfig: Record<string, unknown>;
   settings: Record<string, unknown>;
-  skillText: string;
+  commandText: string;
   issues: ClaudePluginIssue[];
 };
 
@@ -72,14 +72,15 @@ export function inspectClaudePluginAssets(root: string): ClaudePluginAssetReport
   const mcpConfig = readJson(join(root, ".mcp.json"));
   const hooksConfig = readJson(join(root, "hooks", "hooks.json"));
   const settings = readJson(join(root, "settings.json"));
-  const skillPath = join(root, "skills", "architecture-coach", "SKILL.md");
-  const skillText = readFileSync(skillPath, "utf8");
+  const commandPath = join(root, "commands", "tech-coach.md");
+  const commandText = existsSync(commandPath) ? readFileSync(commandPath, "utf8") : "";
   const issues: ClaudePluginIssue[] = [];
 
   requireString(manifest, "name", issues);
   requireString(manifest, "description", issues);
   requireString(manifest, "version", issues);
   requirePath(root, ".mcp.json", issues);
+  requirePath(root, "commands/tech-coach.md", issues);
   requirePath(root, "hooks/hooks.json", issues);
   requirePath(root, "settings.json", issues);
   requireExecutable(root, "bin/archcoach", issues);
@@ -107,20 +108,40 @@ export function inspectClaudePluginAssets(root: string): ClaudePluginAssetReport
       }
     }
   }
-  if (!skillText.includes("architecture.apply_interview_answers")) {
+  if ("skills" in manifest) {
     issues.push({
-      field: "skills/architecture-coach/SKILL.md",
-      message: "must reference the interview answer application tool",
+      field: "skills",
+      message: "must be omitted so Claude Code exposes only the root plugin entry",
     });
   }
-  if (!skillText.includes("Do not answer the questions yourself")) {
+  if (existsSync(join(root, "skills"))) {
     issues.push({
-      field: "skills/architecture-coach/SKILL.md",
-      message: "must prohibit invented interview answers",
+      field: "skills",
+      message: "must be absent so Claude Code does not expose packaged skills as namespaced commands",
+    });
+  }
+  for (const duplicateSkillName of ["architecture-coach", "tech-coach", "codex-tech-coach"]) {
+    if (existsSync(join(root, "skills", duplicateSkillName))) {
+      issues.push({
+        field: `skills/${duplicateSkillName}`,
+        message: "must be absent so Claude Code does not expose a namespaced duplicate",
+      });
+    }
+  }
+  if (!commandText.includes("Never call `architecture.capture_assessment` with `{}`")) {
+    issues.push({
+      field: "commands/tech-coach.md",
+      message: "must require explicit active repoRoot for captures",
+    });
+  }
+  if (!commandText.includes("Do not recommend a test harness")) {
+    issues.push({
+      field: "commands/tech-coach.md",
+      message: "must keep empty greenfield repositories free of test-harness advice",
     });
   }
 
-  return { manifest, mcpConfig, hooksConfig, settings, skillText, issues };
+  return { manifest, mcpConfig, hooksConfig, settings, commandText, issues };
 }
 
 function validateManifestUserConfig(

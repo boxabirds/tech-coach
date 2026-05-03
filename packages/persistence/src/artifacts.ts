@@ -55,10 +55,10 @@ export function artifactDirectory(repoRoot: string, persistenceDir = defaultPers
 export function renderLatestAssessment(pack: LatestAssessmentPack): string {
   const assessment = pack.run.assessment;
   const lines = [
-    "# Ceetrix Tech Lead Assessment",
+    "# Tech Lead Assessment",
     "",
-    "Generated report from the repo-local Ceetrix Tech Lead SQLite store.",
-    "The durable source of truth is the database recorded below; this Markdown file is a readable projection of the latest run.",
+    "This report explains what Tech Lead noticed and what it means for the next change.",
+    "Technical detail: the durable source of truth is the local database recorded below; this Markdown file is a readable projection of the latest run.",
     "",
     `Run: ${pack.run.runId}`,
     `Captured: ${pack.run.capturedAt}`,
@@ -70,11 +70,14 @@ export function renderLatestAssessment(pack: LatestAssessmentPack): string {
     `Action: ${assessment.action}`,
     `Reason: ${assessment.reason}`,
     "",
-    "## Architecture Claims",
+    "## What Tech Lead Thinks Matters",
     ...claimLines(pack),
     "",
-    "## Observed Architecture Shape",
+    "## What The Repo Looks Like",
     ...architectureShapeLines(pack),
+    "",
+    "## Time Basis",
+    ...temporalBriefLines(pack),
     "",
     passiveBaseline(pack) ? "## Baseline Readout" : "## Next Actions",
     ...nextActionLines(pack),
@@ -88,11 +91,12 @@ export function renderLatestAssessment(pack: LatestAssessmentPack): string {
     "## Skipped Questions",
     ...answerLines(pack.skippedQuestions),
     "",
-    "## Evidence",
+    "## Supporting Evidence",
     ...assessment.evidence.map((item) => {
       const family = item.family ? `${item.family}/` : "";
       const category = item.category ? `:${item.category}` : "";
-      return `- ${family}${item.source}${category}: ${item.summary}`;
+      const temporal = item.timeframe ? ` (${item.timeframe}${item.role ? `, ${item.role}` : ""})` : "";
+      return `- ${family}${item.source}${category}${temporal}: ${item.summary}`;
     }),
     "",
     "## Diagnostics",
@@ -113,25 +117,25 @@ function architectureShapeLines(pack: LatestAssessmentPack): string[] {
     shapeConcerns.has(fact.concern)
   );
   if (facts.length === 0) {
-    return ["- No concrete architecture shape evidence was captured."];
+    return ["- Tech Lead did not find enough repo shape evidence to summarize yet."];
   }
   return facts.slice(0, 6).map((fact) =>
-    `- ${fact.concern} (${fact.confidence}): ${fact.summary}`,
+    `- ${fact.summary} Technical detail: ${fact.concern}, confidence ${fact.confidence}.`,
   );
 }
 
 function claimLines(pack: LatestAssessmentPack): string[] {
   const claims = pack.run.assessment.claims ?? [];
   if (claims.length === 0) {
-    return ["- No concrete architecture claims were inferred."];
+    return ["- Tech Lead did not find any concrete claims to carry forward yet."];
   }
   return claims.flatMap((claim) => [
-    `- ${claim.concern} (${claim.confidence}): ${claim.claim}`,
+    `- ${claim.claim} Technical detail: ${claim.concern}, confidence ${claim.confidence}.`,
     ...(claim.evidence.length > 0
-      ? [`  Evidence: ${claim.evidence.slice(0, 4).join("; ")}`]
+      ? [`  Supporting evidence: ${claim.evidence.slice(0, 4).join("; ")}`]
       : []),
     ...(claim.residualUnknowns.length > 0
-      ? [`  Remaining uncertainty: ${claim.residualUnknowns.join("; ")}`]
+      ? [`  Still unclear: ${claim.residualUnknowns.join("; ")}`]
       : []),
   ]);
 }
@@ -162,6 +166,7 @@ function renderEvidence(pack: LatestAssessmentPack): Record<string, unknown> {
     claims: pack.run.assessment.claims ?? [],
     normalizedFacts: normalizedFactsFromPack(pack),
     evidenceByFamily: byFamily,
+    temporalBrief: pack.run.assessment.temporalBrief,
     diagnostics: [
       ...pack.run.diagnostics,
       ...pack.run.assessment.baseline.diagnostics,
@@ -260,8 +265,11 @@ function nextActionLines(pack: LatestAssessmentPack): string[] {
   const lines = [
     `- ${assessment.action}: ${assessment.reason}`,
   ];
-  for (const guidance of assessment.principleGuidance.slice(0, 5)) {
-    for (const pattern of guidance.patterns.slice(0, 2)) {
+  lines.push(...temporalBriefLines(pack));
+  const guidance = selectedGuidance(assessment);
+  const patterns = selectedPatterns(assessment, guidance);
+  if (guidance) {
+    for (const pattern of patterns) {
       lines.push(`- ${guidance.concern}/${pattern.pattern}: ${pattern.addNow}`);
     }
   }
@@ -272,6 +280,55 @@ function nextActionLines(pack: LatestAssessmentPack): string[] {
     }
   }
   return lines;
+}
+
+function temporalBriefLines(pack: LatestAssessmentPack): string[] {
+  const brief = pack.run.assessment.temporalBrief;
+  if (!brief || (
+    brief.past.length === 0
+    && brief.current.length === 0
+    && brief.future.length === 0
+    && brief.uncertain.length === 0
+  )) {
+    return ["- No temporal evidence split was available for this run."];
+  }
+  const lines: string[] = [];
+  if (brief.future.length > 0) {
+    lines.push(`- Future intent: ${brief.future[0]}`);
+  }
+  if (brief.current.length > 0) {
+    lines.push(`- Current system: ${brief.current[0]}`);
+  }
+  if (brief.past.length > 0) {
+    lines.push(`- Past context: ${brief.past[0]}`);
+  }
+  if (brief.uncertain.length > 0) {
+    lines.push(`- Uncertain work: ${brief.uncertain[0]}`);
+  }
+  return lines;
+}
+
+function selectedGuidance(
+  assessment: LatestAssessmentPack["run"]["assessment"],
+): LatestAssessmentPack["run"]["assessment"]["principleGuidance"][number] | undefined {
+  const concern = assessment.policy?.selected.concern;
+  if (!concern) {
+    return undefined;
+  }
+  return assessment.principleGuidance.find((item) => item.concern === concern);
+}
+
+function selectedPatterns(
+  assessment: LatestAssessmentPack["run"]["assessment"],
+  guidance: LatestAssessmentPack["run"]["assessment"]["principleGuidance"][number] | undefined,
+): LatestAssessmentPack["run"]["assessment"]["principleGuidance"][number]["patterns"] {
+  if (!guidance) {
+    return [];
+  }
+  const patternId = assessment.policy?.selected.patternId;
+  return patternId
+    ? guidance.patterns.filter((pattern) => pattern.pattern === patternId)
+    : guidance.patterns.slice(0, 2);
 }
 
 function questionLines(questions: LatestAssessmentPack["openQuestions"]): string[] {

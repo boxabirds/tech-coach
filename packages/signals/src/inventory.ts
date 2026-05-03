@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { readdirSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import type { ArchitectureEvidenceFact } from "../../kernel/src/claimTypes.js";
+import type { EvidenceRole, EvidenceTimeframe } from "../../kernel/src/claimTypes.js";
 import type {
   OptionalSignalProvider,
   OptionalSignalResult,
@@ -97,7 +98,7 @@ export const inventoryProvider: OptionalSignalProvider = {
 
 function factsForInventory(inventory: ProjectInventory): ArchitectureEvidenceFact[] {
   const important = inventory.files.filter((path) =>
-    /(^|\/)(package\.json|wrangler\.toml(\.example)?|README\.md|docs\/|src\/|workers\/|apps\/|packages\/|crates\/|Package\.swift|Cargo\.toml|migrations\/)/i.test(path)
+    /(^|\/)(package\.json|wrangler\.toml(\.example)?|README\.md|docs\/|src\/|workers\/|apps\/|packages\/|crates\/|tests?\/|__tests__\/|Package\.swift|Cargo\.toml|migrations\/)/i.test(path)
   ).slice(0, 80);
   const included = important.map((path): ArchitectureEvidenceFact => ({
     id: factId("inventory.file", path),
@@ -109,6 +110,7 @@ function factsForInventory(inventory: ProjectInventory): ArchitectureEvidenceFac
     source: "inventory",
     confidence: "high",
     freshness: "current",
+    ...temporalForInventoryPath(path),
     provenance: [{ path }],
   }));
   const excludedByReason = new Map<string, number>();
@@ -126,10 +128,33 @@ function factsForInventory(inventory: ProjectInventory): ArchitectureEvidenceFac
     source: "inventory",
     confidence: "high",
     freshness: "current",
+    timeframe: "current",
+    role: "repository_shape",
     provenance: [{ excerpt: reason }],
     metadata: { reason, count },
   }));
   return [...included, ...excluded];
+}
+
+function temporalForInventoryPath(
+  path: string,
+): { timeframe: EvidenceTimeframe; role: EvidenceRole } {
+  if (/^pocs?\//i.test(path) || /(^|\/)(prototype|experiment|lab)s?\//i.test(path)) {
+    return { timeframe: "past", role: "experiment" };
+  }
+  if (/^docs\/(design|architecture)(\/|\.|$)/i.test(path) || /(^|\/)(tech-architecture|technical-architecture|architecture)\.md$/i.test(path)) {
+    return { timeframe: "future", role: "architecture_basis" };
+  }
+  if (/^docs\/adr\//i.test(path)) {
+    return { timeframe: "past", role: "decision_record" };
+  }
+  if (/(\.test|\.spec)\.[cm]?[jt]sx?$/.test(path) || /(^|\/)(tests?|__tests__)\/.+/.test(path)) {
+    return { timeframe: "current", role: "test_evidence" };
+  }
+  if (/^src\//i.test(path) || /^packages\//i.test(path) || /^apps\//i.test(path) || /^workers\//i.test(path) || /^crates\//i.test(path)) {
+    return { timeframe: "current", role: "implementation" };
+  }
+  return { timeframe: "current", role: "repository_shape" };
 }
 
 function summarizeInventory(inventory: ProjectInventory): Record<string, unknown> {

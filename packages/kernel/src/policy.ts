@@ -1,4 +1,4 @@
-import type { AssessmentEvidence, AssessmentResult } from "./assessment.js";
+import type { AssessmentEvidence, AssessmentResult, TemporalBrief } from "./assessment.js";
 import type {
   ArchitectureBaseline,
   ArchitectureConcern,
@@ -121,6 +121,7 @@ export function selectArchitecturePolicy(input: {
   revisitAlerts: RevisitAlert[];
   principleGuidance: PrincipleGuidance[];
   interactionContext?: ArchitectureInteractionContext;
+  temporalBrief?: TemporalBrief;
 }): ArchitecturePolicyDecision {
   const concerns = input.baseline.concerns.map((concern): ConcernPolicyState => {
     const guidance = input.principleGuidance.find((item) => item.concern === concern.concern);
@@ -175,6 +176,7 @@ function selectPolicyAction(input: {
   revisitAlerts: RevisitAlert[];
   principleGuidance: PrincipleGuidance[];
   interactionContext?: ArchitectureInteractionContext;
+  temporalBrief?: TemporalBrief;
 }): SelectedPolicyAction {
   if (input.interactionContext === "passive_baseline") {
     return selectedAction({
@@ -206,7 +208,7 @@ function selectPolicyAction(input: {
     concern.thresholdCandidates.includes("blast_radius")
     && hasExplicitRiskSource(concern)
   );
-  if (risk) {
+  if (risk && !riskIsOnlyTemporalNoise(input.temporalBrief)) {
     return selectedAction({
       concern: risk.concern,
       action: "Run review",
@@ -256,7 +258,7 @@ function selectPolicyAction(input: {
   const packageBoundary = concernBy(input.baseline, "package_boundary", (concern) =>
     concern.facts.length > 0 && concern.confidence !== "low"
   );
-  if (packageBoundary) {
+  if (packageBoundary && boundaryGuidanceAllowed(input.interactionContext)) {
     return selectedAction({
       concern: packageBoundary.concern,
       action: "Add test harness",
@@ -268,7 +270,7 @@ function selectPolicyAction(input: {
     });
   }
 
-  const highValuePattern = firstHighValuePattern(input.principleGuidance);
+  const highValuePattern = firstHighValuePattern(input.principleGuidance, input.interactionContext);
   if (highValuePattern) {
     return selectedAction({
       concern: highValuePattern.concern,
@@ -324,10 +326,32 @@ function selectPolicyAction(input: {
   return selectedAction({
     action: "Continue",
     intervention: "note",
-    reason: "Current evidence does not require adding structure yet.",
+    reason: input.interactionContext === "requested_next_action" && hasFuturePlanningAnchor(input.temporalBrief)
+      ? "Future-facing architecture evidence is available; use it as the planning anchor and current code as the feasibility check."
+      : "Current evidence does not require adding structure yet.",
     baseline: input.baseline,
-    doNotAdd: ["Do not introduce new boundaries, storage, auth, or deployment machinery without a matching threshold signal."],
+    doNotAdd: input.interactionContext === "requested_next_action" && hasHistoricalExperimentContext(input.temporalBrief)
+      ? ["Do not treat old experiments or dirty status as active project direction unless user intent or project documents point to them."]
+      : ["Do not introduce new boundaries, storage, auth, or deployment machinery without a matching threshold signal."],
   });
+}
+
+function riskIsOnlyTemporalNoise(brief: TemporalBrief | undefined): boolean {
+  if (!brief) {
+    return false;
+  }
+  return brief.future.length > 0
+    && brief.past.length > 0
+    && brief.current.length === 0
+    && brief.uncertain.length === 0;
+}
+
+function hasFuturePlanningAnchor(brief: TemporalBrief | undefined): boolean {
+  return (brief?.future.length ?? 0) > 0;
+}
+
+function hasHistoricalExperimentContext(brief: TemporalBrief | undefined): boolean {
+  return (brief?.past.length ?? 0) > 0;
 }
 
 function compareAdequacyPriority(
@@ -401,13 +425,16 @@ function selectedAction(input: {
 
 function firstHighValuePattern(
   guidance: PrincipleGuidance[],
+  interactionContext: ArchitectureInteractionContext | undefined,
 ): {
   concern: ArchitectureConcern;
   patternId: StructuralPatternId;
   confidence: string;
   guidance: PrincipleGuidance;
 } | undefined {
-  const candidates = guidance.flatMap((item) =>
+  const candidates = guidance.filter((item) =>
+    item.concern !== "package_boundary" || boundaryGuidanceAllowed(interactionContext)
+  ).flatMap((item) =>
     item.patterns.map((pattern) => ({
       concern: item.concern,
       patternId: pattern.pattern,
@@ -419,6 +446,14 @@ function firstHighValuePattern(
   return candidates.sort((left, right) =>
     right.score - left.score || left.concern.localeCompare(right.concern)
   )[0];
+}
+
+function boundaryGuidanceAllowed(
+  interactionContext: ArchitectureInteractionContext | undefined,
+): boolean {
+  return interactionContext === "pending_change_assessment"
+    || interactionContext === "risk_review"
+    || interactionContext === "architecture_decision";
 }
 
 function patternScore(

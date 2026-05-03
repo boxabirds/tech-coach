@@ -130,7 +130,18 @@ name = "taskmgr-production"
           concern: "application_shape",
           kind: "doc.architecture",
           confidence: "high",
+          timeframe: "future",
+          role: "architecture_basis",
           provenance: [expect.objectContaining({ path: "docs/design/tech-architecture.md" })],
+        }),
+      ]),
+    );
+    expect(result.details?.temporalEvidence).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: "docs/design/tech-architecture.md",
+          timeframe: "future",
+          role: "architecture_basis",
         }),
       ]),
     );
@@ -155,6 +166,39 @@ name = "taskmgr-production"
       expect.arrayContaining([
         expect.objectContaining({ kind: "inventory.file", summary: expect.stringContaining("docs/self-hosting.md") }),
         expect.objectContaining({ kind: "inventory.excluded", summary: expect.stringContaining("dependency install") }),
+      ]),
+    );
+  });
+
+  it("classifies POC inventory as past experiment evidence", () => {
+    const repo = tempRepo({
+      "pocs/old-flight-lab/package.json": "{}",
+      "src/main.ts": "export const current = true;",
+      "tests/current.test.ts": "test('current', () => {});",
+    });
+    const inventory = buildProjectInventory(repo, 50);
+    const result = inventoryProvider.collect({ ...context(repo, inventory.files), inventory }) as OptionalSignalResult;
+
+    expect(result.facts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "inventory.file",
+          provenance: [expect.objectContaining({ path: "pocs/old-flight-lab/package.json" })],
+          timeframe: "past",
+          role: "experiment",
+        }),
+        expect.objectContaining({
+          kind: "inventory.file",
+          provenance: [expect.objectContaining({ path: "src/main.ts" })],
+          timeframe: "current",
+          role: "implementation",
+        }),
+        expect.objectContaining({
+          kind: "inventory.file",
+          provenance: [expect.objectContaining({ path: "tests/current.test.ts" })],
+          timeframe: "current",
+          role: "test_evidence",
+        }),
       ]),
     );
   });

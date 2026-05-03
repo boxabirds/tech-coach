@@ -105,7 +105,7 @@ profile.
 | Component | v1 Role | Portability |
 | --- | --- | --- |
 | `.claude-plugin/plugin.json` | Manifest, metadata, component paths, dependencies, user configuration | Claude-specific |
-| `skills/` | Portable method and agent-facing workflow guidance | High |
+| Host skill templates | Portable method and agent-facing workflow guidance | High |
 | `commands/` | Legacy/flat command-style skill files; avoid for new core behavior unless needed for convenience | Medium |
 | `agents/` | Optional specialist reviewers for high-risk concerns | Medium |
 | `hooks/` | Lifecycle capture and enforcement | Host-specific |
@@ -503,12 +503,8 @@ architecture-coach/
   .claude-plugin/
     plugin.json
 
-  skills/
-    architecture-coach/
-      SKILL.md
-
   commands/
-    architecture-status.md
+    tech-coach.md
 
   agents/
     architecture-reviewer.md
@@ -550,6 +546,11 @@ architecture-coach/
     README.md
     evaluation.md
 ```
+
+The Claude Code plugin should expose Tech Coach through `commands/tech-coach.md`
+and should not package a same-named `skills/` directory. Claude Code exposes
+packaged plugin skills as namespaced entries, which creates duplicate entries
+such as `/tech-coach:tech-coach` or `/tech-coach:codex-tech-coach`.
 
 The `bin/archcoach` CLI and MCP server should share the same kernel. Hooks
 should call the CLI or MCP endpoint rather than duplicating logic.
@@ -1160,7 +1161,6 @@ coding hosts.
 Deliver:
 
 - plugin manifest
-- architecture-coach skill
 - minimal hook set: SessionStart, UserPromptSubmit, PostToolBatch, Stop
 - `bin/archcoach`
 - optional specialist agents

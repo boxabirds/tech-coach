@@ -37,6 +37,17 @@ export type ArchitectureFactRelationship = {
   label?: string;
 };
 
+export type EvidenceTimeframe = "past" | "current" | "future" | "uncertain";
+
+export type EvidenceRole =
+  | "architecture_basis"
+  | "implementation"
+  | "experiment"
+  | "decision_record"
+  | "test_evidence"
+  | "work_in_progress"
+  | "repository_shape";
+
 export type ArchitectureFactKind =
   | "inventory.file"
   | "inventory.excluded"
@@ -74,6 +85,8 @@ export type ArchitectureEvidenceFact = {
   provenance: ArchitectureFactProvenance[];
   relationships?: ArchitectureFactRelationship[];
   metadata?: Record<string, unknown>;
+  timeframe?: EvidenceTimeframe;
+  role?: EvidenceRole;
 };
 
 export type ArchitectureEvidenceNode = {
@@ -91,6 +104,8 @@ export type ArchitectureEvidenceNode = {
   source: string;
   confidence: BaselineConfidence;
   freshness: BaselineFreshness;
+  timeframe?: EvidenceTimeframe;
+  role?: EvidenceRole;
 };
 
 export type ArchitectureEvidenceGraph = {

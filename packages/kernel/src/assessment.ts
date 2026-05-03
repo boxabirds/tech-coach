@@ -9,7 +9,12 @@ import {
 } from "./baselineTypes.js";
 import { planBaselineInterviewQuestions } from "./baselineInterview.js";
 import { claimsForTelemetry } from "./claims.js";
-import type { ArchitectureClaim } from "./claimTypes.js";
+import type {
+  ArchitectureClaim,
+  ArchitectureEvidenceFact,
+  EvidenceRole,
+  EvidenceTimeframe,
+} from "./claimTypes.js";
 import {
   assertDecisionRecord,
   decisionRecordsToSummaries,
@@ -53,6 +58,15 @@ export type AssessmentEvidence = {
   category?: string;
   summary: string;
   signalId?: string;
+  timeframe?: EvidenceTimeframe;
+  role?: EvidenceRole;
+};
+
+export type TemporalBrief = {
+  past: string[];
+  current: string[];
+  future: string[];
+  uncertain: string[];
 };
 
 export type AssessmentResult = {
@@ -72,6 +86,7 @@ export type AssessmentResult = {
   revisitAlerts: RevisitAlert[];
   principleGuidance: PrincipleGuidance[];
   policy?: ArchitecturePolicyDecision;
+  temporalBrief?: TemporalBrief;
   structureReasoning?: StructureAdequacyAssessment[];
   architectureDebt?: ArchitectureDebtAssessment[];
   interactionContext?: ArchitectureInteractionContext;
@@ -140,12 +155,14 @@ export function assessArchitecture(input: AssessmentInput): AssessmentResult {
     structureReasoning,
   });
   const principleGuidance = buildPrincipleGuidance(baseline);
+  const temporalBrief = buildTemporalBrief(normalized.telemetry);
   const policy = selectArchitecturePolicy({
     baseline,
     questions,
     revisitAlerts,
     principleGuidance,
     interactionContext,
+    temporalBrief,
   });
   const architectureDebt = buildArchitectureDebt(structureReasoning, normalized.memoryRecords);
 
@@ -168,6 +185,7 @@ export function assessArchitecture(input: AssessmentInput): AssessmentResult {
     revisitAlerts,
     principleGuidance,
     policy,
+    temporalBrief,
     structureReasoning,
     architectureDebt,
     interactionContext,
@@ -208,14 +226,14 @@ export function classifyInteractionContext(
   if (containsAny(text, ["decide", "decision", "choose", "tradeoff", "adr", "record decision"])) {
     return "architecture_decision";
   }
+  if (containsAny(text, ["recommend", "next move", "what should", "what's next", "what next", "where to start"])) {
+    return "requested_next_action";
+  }
   if (
     event.changedFiles.length > 0
     || containsAny(text, ["change", "diff", "pr", "pull request", "implement", "add ", "create ", "refactor", "fix "])
   ) {
     return "pending_change_assessment";
-  }
-  if (containsAny(text, ["recommend", "next move", "what should", "what's next", "what next", "where to start"])) {
-    return "requested_next_action";
   }
   return "passive_baseline";
 }
@@ -451,13 +469,114 @@ function evidenceFromSignal(signal: SignalEnvelope<unknown>): AssessmentEvidence
   const payload = signal.payload;
   const category = readPayloadString(payload, "category");
   const payloadEvidence = readPayloadEvidence(payload);
+  const temporal = preferredTemporalEvidence(payload);
   return {
     family: signal.family,
     source: signal.source,
     ...(category ? { category } : {}),
     signalId: signal.id,
-    summary: payloadEvidence[0] ?? `${signal.family} signal from ${signal.source}`,
+    summary: temporal?.summary ?? payloadEvidence[0] ?? `${signal.family} signal from ${signal.source}`,
+    ...(temporal?.timeframe ? { timeframe: temporal.timeframe } : {}),
+    ...(temporal?.role ? { role: temporal.role } : {}),
   };
+}
+
+function buildTemporalBrief(telemetry: ArchitecturalTelemetryBundle): TemporalBrief {
+  const brief: TemporalBrief = { past: [], current: [], future: [], uncertain: [] };
+  for (const signal of allSignals(telemetry)) {
+    for (const item of temporalEvidenceFromPayload(signal.payload)) {
+      brief[item.timeframe].push(formatTemporalItem(item));
+    }
+  }
+  return {
+    past: uniqueFirst(brief.past, 4),
+    current: uniqueFirst(brief.current, 4),
+    future: uniqueFirst(brief.future, 4),
+    uncertain: uniqueFirst(brief.uncertain, 4),
+  };
+}
+
+function preferredTemporalEvidence(
+  payload: unknown,
+): TemporalEvidenceItem | undefined {
+  const items = temporalEvidenceFromPayload(payload);
+  return items.sort((left, right) =>
+    temporalPriority(right) - temporalPriority(left)
+  )[0];
+}
+
+type TemporalEvidenceItem = {
+  path?: string;
+  timeframe: EvidenceTimeframe;
+  role: EvidenceRole;
+  summary: string;
+};
+
+function temporalEvidenceFromPayload(payload: unknown): TemporalEvidenceItem[] {
+  if (!isRecord(payload)) {
+    return [];
+  }
+  const details = isRecord(payload.details) ? payload.details : undefined;
+  const explicit = Array.isArray(details?.temporalEvidence)
+    ? details.temporalEvidence.filter(isTemporalEvidenceItem)
+    : [];
+  const facts = Array.isArray(details?.facts)
+    ? details.facts.filter(isArchitectureFact).flatMap((fact) =>
+      fact.provenance.map((item) => ({
+        path: item.path,
+        timeframe: fact.timeframe ?? "uncertain",
+        role: fact.role ?? "repository_shape",
+        summary: fact.summary,
+      }))
+    )
+    : [];
+  return [...explicit, ...facts];
+}
+
+function isTemporalEvidenceItem(value: unknown): value is TemporalEvidenceItem {
+  return isRecord(value)
+    && isTimeframe(value.timeframe)
+    && isRole(value.role)
+    && typeof value.summary === "string";
+}
+
+function isArchitectureFact(value: unknown): value is ArchitectureEvidenceFact {
+  return isRecord(value)
+    && typeof value.id === "string"
+    && typeof value.summary === "string"
+    && Array.isArray(value.provenance);
+}
+
+function isTimeframe(value: unknown): value is EvidenceTimeframe {
+  return value === "past" || value === "current" || value === "future" || value === "uncertain";
+}
+
+function isRole(value: unknown): value is EvidenceRole {
+  return value === "architecture_basis"
+    || value === "implementation"
+    || value === "experiment"
+    || value === "decision_record"
+    || value === "test_evidence"
+    || value === "work_in_progress"
+    || value === "repository_shape";
+}
+
+function temporalPriority(item: TemporalEvidenceItem): number {
+  if (item.timeframe === "future" && item.role === "architecture_basis") return 100;
+  if (item.timeframe === "current" && item.role === "implementation") return 90;
+  if (item.timeframe === "current" && item.role === "test_evidence") return 80;
+  if (item.timeframe === "current") return 70;
+  if (item.timeframe === "uncertain") return 40;
+  return 20;
+}
+
+function formatTemporalItem(item: TemporalEvidenceItem): string {
+  const location = item.path ? `${item.path}: ` : "";
+  return `${location}${item.summary}`;
+}
+
+function uniqueFirst(items: string[], limit: number): string[] {
+  return Array.from(new Set(items)).slice(0, limit);
 }
 
 function readPayloadString(payload: unknown, key: string): string | undefined {
