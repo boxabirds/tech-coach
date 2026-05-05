@@ -114,6 +114,10 @@ rm -rf ~/.claude/plugins/cache/ceetrix-tech-lead-local/tech-coach/0.1.0-alpha.1/
 Restart Claude Code after changing plugin skills; the command list is cached per
 session.
 
+For Claude Code inside VS Code, a new Claude chat is not always enough. Run
+`/reload-plugins` inside Claude Code, or run `Developer: Reload Window` from the
+VS Code Command Palette.
+
 ### Notes
 
 Claude caches plugin content by version. If the source changes but the plugin

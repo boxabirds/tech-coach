@@ -132,6 +132,16 @@ claude plugin validate "$TECH_COACH_HOME"
 Restart Claude Code after installing or updating the plugin. Claude Code caches
 plugin commands per session.
 
+If you use Claude Code inside VS Code, a new Claude chat is not always enough.
+Run `/reload-plugins` in Claude Code, or run `Developer: Reload Window` from the
+VS Code Command Palette. If the plugin was updated through a local marketplace,
+also run:
+
+```sh
+claude plugin marketplace update tech-coach-alpha-local
+claude plugin update tech-coach@tech-coach-alpha-local --scope user
+```
+
 ## Core Direction
 
 The preferred shape is:
